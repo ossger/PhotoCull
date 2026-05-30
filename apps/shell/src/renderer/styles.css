@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { height: 100%; margin: 0; }
+body { font-family: theme('fontFamily.sans'); }
+
+/* Custom scrollbar for the dark theme */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: theme('colors.panel'); }
+::-webkit-scrollbar-thumb { background: theme('colors.line'); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: theme('colors.muted'); }

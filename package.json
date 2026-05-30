@@ -1,0 +1,19 @@
+{
+  "name": "photocull",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Cross-platform culling app for photographers — scene detection + AI scoring",
+  "workspaces": [
+    "apps/shell"
+  ],
+  "scripts": {
+    "dev": "npm --workspace apps/shell run dev",
+    "build": "npm --workspace apps/shell run build",
+    "dist": "npm --workspace apps/shell run dist",
+    "worker:install": "python -m pip install -e apps/worker",
+    "worker:dev": "python -m photocull.server"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
