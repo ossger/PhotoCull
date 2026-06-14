@@ -1,7 +1,54 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { FaceDetection } from "@shared/types";
 import { useStore } from "../store";
 import { useZoomPan } from "../useZoomPan";
 import { CropOverlay } from "./CropOverlay";
+import { FacesOverlay } from "./FacesOverlay";
+
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
+function rectFromCenter(cx: number, cy: number, halfW: number, halfH: number) {
+  const x0 = clamp01(cx - halfW);
+  const y0 = clamp01(cy - halfH);
+  const x1 = clamp01(cx + halfW);
+  const y1 = clamp01(cy + halfH);
+  return { x: x0, y: y0, w: Math.max(x1 - x0, 0.01), h: Math.max(y1 - y0, 0.01) };
+}
+
+// Build a normalized 0..1 target rect around the subject's eyes for the auto
+// loupe: largest face, framing both eyes (fallback: one eye, then the face
+// box). Returns null when there's no usable face.
+function eyeRectForFaces(
+  faces: FaceDetection[],
+): { x: number; y: number; w: number; h: number } | null {
+  if (faces.length === 0) return null;
+  const face = faces.reduce((best, f) =>
+    f.box[2] * f.box[3] > best.box[2] * best.box[3] ? f : best,
+  );
+  const [fx, fy, fw, fh] = face.box;
+  const l = face.left_eye;
+  const r = face.right_eye;
+
+  if (l && r) {
+    const cx = (l[0] + r[0]) / 2;
+    const cy = (l[1] + r[1]) / 2;
+    const interoc = Math.hypot(l[0] - r[0], l[1] - r[1]) || fw * 0.5;
+    return rectFromCenter(cx, cy, interoc * 1.15, Math.max(interoc * 0.6, fh * 0.12));
+  }
+  const one = l ?? r;
+  if (one) {
+    return rectFromCenter(one[0], one[1], fw * 0.35, fh * 0.22);
+  }
+  // No eyes detected: frame the face box (eyes sit in its upper half anyway).
+  return {
+    x: clamp01(fx),
+    y: clamp01(fy),
+    w: clamp01(fx + fw) - clamp01(fx),
+    h: clamp01(fy + fh) - clamp01(fy),
+  };
+}
 
 function StarRow({ stars }: { stars: number }) {
   return (
@@ -31,6 +78,9 @@ export function Loupe() {
       : s.images.find((i) => i.id === s.selectedImageId) ?? null,
   );
   const cropMode = useStore((s) => s.cropMode);
+  const showFaces = useStore((s) => s.showFaces);
+  const toggleFaces = useStore((s) => s.toggleFaces);
+  const eyeZoom = useStore((s) => s.eyeZoom);
 
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
   // Live bounding box of the displayed image (post-object-contain) so the crop
@@ -83,9 +133,46 @@ export function Loupe() {
     if (cropMode) zoom.reset();
   }, [cropMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Track the displayed image bounding box for the crop overlay.
+  const faces = useMemo<FaceDetection[]>(() => {
+    if (!image?.faces_json) return [];
+    try {
+      const parsed = JSON.parse(image.faces_json);
+      return Array.isArray(parsed) ? (parsed as FaceDetection[]) : [];
+    } catch {
+      return [];
+    }
+  }, [image?.faces_json]);
+
+  // Read faces through a ref so the snap effect below can fire purely on image
+  // readiness (naturalSize) without also firing on the image-change render,
+  // when naturalSize still holds the previous frame's stale dimensions.
+  const facesRef = useRef(faces);
+  facesRef.current = faces;
+
+  // Auto-snap the loupe to the subject's eyes once the frame's pixels are ready
+  // (naturalSize), and again when the full-res image swaps in (sharpening the
+  // same view). Toggling eyeZoom off returns to fit. Skipped in crop mode and
+  // on frames with no detected face.
+  useEffect(() => {
+    if (cropMode || !naturalSize) return;
+    if (!eyeZoom) {
+      zoom.reset();
+      return;
+    }
+    const target = eyeRectForFaces(facesRef.current);
+    if (target) zoom.zoomToRect(target);
+    else zoom.reset();
+  }, [eyeZoom, cropMode, naturalSize]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The face overlay shares the crop overlay's image rect, which is only valid
+  // in fit view (it's drawn in the untransformed outer container). Hide it while
+  // zoomed so the boxes can't drift off the photo.
+  const facesOverlayActive =
+    showFaces && !cropMode && faces.length > 0 && zoom.transform.scale <= 1.01;
+
+  // Track the displayed image bounding box for the crop / faces overlays.
   useLayoutEffect(() => {
-    if (!cropMode || !zoom.imgRef.current || !containerInnerRef.current) {
+    if ((!cropMode && !facesOverlayActive) || !zoom.imgRef.current || !containerInnerRef.current) {
       setImageBox(null);
       return;
     }
@@ -107,7 +194,7 @@ export function Loupe() {
     if (zoom.imgRef.current) ro.observe(zoom.imgRef.current);
     if (containerInnerRef.current) ro.observe(containerInnerRef.current);
     return () => ro.disconnect();
-  }, [cropMode, fullLoaded, naturalSize, image?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cropMode, facesOverlayActive, fullLoaded, naturalSize, image?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!image) {
     return (
@@ -185,6 +272,10 @@ export function Loupe() {
           <CropOverlay imageBox={imageBox} imageAspect={naturalAspect} />
         )}
 
+        {facesOverlayActive && imageBox && (
+          <FacesOverlay imageBox={imageBox} faces={faces} />
+        )}
+
         {/* Status chip */}
         {!cropMode && zoomed && (
           <div className="absolute top-2 right-2 px-2 py-1 text-xs font-mono bg-black/60 rounded">
@@ -219,6 +310,18 @@ export function Loupe() {
           <ScoreChip label="focus" value={image.score_focus} />
           <ScoreChip label="exp" value={image.score_exposure} />
           <ScoreChip label="eyes" value={image.score_eyes} />
+          {image.n_faces != null && image.n_faces > 0 && (
+            <button
+              type="button"
+              onClick={toggleFaces}
+              className={`text-xs rounded px-1.5 py-0.5 border transition-colors ${
+                showFaces ? "border-accent text-accent" : "border-line text-muted hover:text-ink"
+              }`}
+              title="Toggle face / eye overlay (F)"
+            >
+              {image.n_faces} {image.n_faces === 1 ? "face" : "faces"}
+            </button>
+          )}
         </div>
         <div className="text-muted text-xs flex gap-3 whitespace-nowrap">
           {image.camera_model && <span>{image.camera_model}</span>}
@@ -228,6 +331,21 @@ export function Loupe() {
           {image.shutter && <span>{image.shutter}</span>}
           {image.iso && <span>ISO {image.iso}</span>}
         </div>
+        {(image.focus_mode || image.af_area_mode || image.af_points_in_focus) && (
+          <div className="text-muted text-xs flex items-center gap-2 min-w-0">
+            <span className="uppercase tracking-wide text-[10px] text-line">AF</span>
+            {image.focus_mode && <span title="Focus mode">{image.focus_mode}</span>}
+            {image.af_area_mode && <span title="AF area mode">{image.af_area_mode}</span>}
+            {image.af_points_in_focus && (
+              <span
+                className="truncate max-w-[14rem]"
+                title={`AF points in focus: ${image.af_points_in_focus}`}
+              >
+                {image.af_points_in_focus}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

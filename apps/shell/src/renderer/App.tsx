@@ -52,7 +52,8 @@ function HotkeyHint() {
         <>
           <Key>←/→</Key> frame · <Key>↑/↓</Key> scene · <Key>P</Key> pick ·{" "}
           <Key>X</Key> reject · <Key>U</Key> unset · <Key>0-5</Key> stars ·{" "}
-          <Key>C</Key> compare · <Key>R</Key> crop · <Key>Space</Key>/dbl-click 1:1
+          <Key>C</Key> compare · <Key>R</Key> crop · <Key>E</Key> eye-zoom ·{" "}
+          <Key>Space</Key>/dbl-click 1:1
         </>
       )}
     </div>

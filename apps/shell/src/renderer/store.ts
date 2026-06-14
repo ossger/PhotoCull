@@ -3,6 +3,17 @@ import type { CropRect, ImageRow, SceneRow, ShootProgress } from "@shared/types"
 
 export type SortMode = "rank" | "time";
 
+const EYE_ZOOM_KEY = "photocull.eyeZoom";
+
+function loadEyeZoom(): boolean {
+  try {
+    const v = localStorage.getItem(EYE_ZOOM_KEY);
+    return v == null ? true : v === "1";
+  } catch {
+    return true;
+  }
+}
+
 interface Store {
   shootRoot: string | null;
   images: ImageRow[];
@@ -15,6 +26,10 @@ interface Store {
   // the ImageRow (crop_left/top/right/bottom) and persist through the worker.
   cropMode: boolean;
   cropDraft: CropRect | null;
+  // Toggle for the face/eye detection overlay in the loupe (hotkey F).
+  showFaces: boolean;
+  // Auto-zoom the loupe to the subject's eyes on each frame (hotkey E). Persisted.
+  eyeZoom: boolean;
   sortMode: SortMode;
   progress: ShootProgress;
   loading: boolean;
@@ -36,6 +51,9 @@ interface Store {
   exitCompare: () => void;
 
   setSortMode: (mode: SortMode) => void;
+
+  toggleFaces: () => void;
+  toggleEyeZoom: () => void;
 
   enterCropMode: () => void;
   exitCropMode: () => void;
@@ -78,6 +96,8 @@ export const useStore = create<Store>((set, get) => ({
   compareMode: false,
   cropMode: false,
   cropDraft: null,
+  showFaces: false,
+  eyeZoom: loadEyeZoom(),
   sortMode: "rank",
   progress: { state: "idle", done: 0, total: 0, current: null },
   loading: false,
@@ -223,6 +243,22 @@ export const useStore = create<Store>((set, get) => ({
 
   setSortMode(mode) {
     set({ sortMode: mode });
+  },
+
+  toggleFaces() {
+    set((s) => ({ showFaces: !s.showFaces }));
+  },
+
+  toggleEyeZoom() {
+    set((s) => {
+      const next = !s.eyeZoom;
+      try {
+        localStorage.setItem(EYE_ZOOM_KEY, next ? "1" : "0");
+      } catch {
+        // ignore storage failures (private mode, quota, etc.)
+      }
+      return { eyeZoom: next };
+    });
   },
 
   enterCropMode() {

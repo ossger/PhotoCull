@@ -9,6 +9,8 @@ export function Toolbar() {
   const images = useStore((s) => s.images);
   const sortMode = useStore((s) => s.sortMode);
   const setSortMode = useStore((s) => s.setSortMode);
+  const eyeZoom = useStore((s) => s.eyeZoom);
+  const toggleEyeZoom = useStore((s) => s.toggleEyeZoom);
 
   const [exporting, setExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
@@ -84,6 +86,16 @@ export function Toolbar() {
         )}
       </div>
       <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={toggleEyeZoom}
+          className={`text-xs rounded-md px-2.5 py-1 border bg-panel2 transition-colors ${
+            eyeZoom ? "border-accent text-accent" : "border-line text-muted hover:text-ink"
+          }`}
+          title="Auto-zoom the loupe to the subject's eyes on each frame (E)"
+        >
+          Eye-zoom {eyeZoom ? "on" : "off"}
+        </button>
         <div className="flex items-center bg-panel2 border border-line rounded-md overflow-hidden text-xs">
           <button
             type="button"

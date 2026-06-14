@@ -19,6 +19,8 @@ interface UseZoomPanResult {
   transform: Transform;
   reset: () => void;
   toggleOneToOne: () => void;
+  // Zoom + center on a normalized 0..1 sub-rect of the displayed image.
+  zoomToRect: (rect: { x: number; y: number; w: number; h: number }, opts?: { pad?: number }) => void;
   // Bind these to the container element.
   onWheel: React.WheelEventHandler<HTMLDivElement>;
   onMouseDown: React.MouseEventHandler<HTMLDivElement>;
@@ -77,6 +79,43 @@ export function useZoomPan(naturalSize: { w: number; h: number } | null): UseZoo
       return clamp({ scale: oneToOneScale(), tx: cur.tx, ty: cur.ty });
     });
   }, [clamp, oneToOneScale]);
+
+  // Zoom + center on a sub-rectangle of the image, given in normalized 0..1
+  // coords of the displayed (fit) image. Used by the eye loupe to snap to the
+  // subject's eyes. Scale is capped at 1:1 (100%) so we never upscale past the
+  // native pixels — the whole point is to judge real sharpness.
+  const zoomToRect = useCallback(
+    (rect: { x: number; y: number; w: number; h: number }, opts?: { pad?: number }) => {
+      const c = containerRef.current;
+      if (!c || !naturalSize) return;
+      const cRect = c.getBoundingClientRect();
+      if (cRect.width === 0 || cRect.height === 0) return;
+
+      // Displayed (object-contain) image size at fit scale, derived from
+      // geometry so it's independent of the current transform.
+      const fitScale = Math.min(cRect.width / naturalSize.w, cRect.height / naturalSize.h);
+      const fitW = naturalSize.w * fitScale;
+      const fitH = naturalSize.h * fitScale;
+      if (fitW === 0 || fitH === 0) return;
+
+      const pad = opts?.pad ?? 0.18; // leave a margin around the rect
+      const rectW = Math.max(rect.w * fitW, 1);
+      const rectH = Math.max(rect.h * fitH, 1);
+      const fillScale = (1 - pad) * Math.min(cRect.width / rectW, cRect.height / rectH);
+
+      const dpr = window.devicePixelRatio || 1;
+      const oneToOne = naturalSize.w / fitW / dpr; // 100% = 1 image px per device px
+
+      const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, fillScale, oneToOne));
+
+      // Offset of the rect center from the image center, in fit CSS px.
+      const cx = (rect.x + rect.w / 2 - 0.5) * fitW;
+      const cy = (rect.y + rect.h / 2 - 0.5) * fitH;
+
+      setTransform(clamp({ scale, tx: -scale * cx, ty: -scale * cy }));
+    },
+    [naturalSize, clamp],
+  );
 
   const onWheel: React.WheelEventHandler<HTMLDivElement> = useCallback(
     (e) => {
@@ -154,6 +193,7 @@ export function useZoomPan(naturalSize: { w: number; h: number } | null): UseZoo
     transform,
     reset,
     toggleOneToOne,
+    zoomToRect,
     onWheel,
     onMouseDown,
     onDoubleClick,

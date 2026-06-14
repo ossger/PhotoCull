@@ -15,6 +15,9 @@ export interface ImageRow {
   width: number | null;
   height: number | null;
   orientation: number | null;
+  focus_mode: string | null;
+  af_area_mode: string | null;
+  af_points_in_focus: string | null;
   pick: -1 | 0 | 1;
   stars: number;
   color_label: string | null;
@@ -22,6 +25,8 @@ export interface ImageRow {
   score_focus: number | null;
   score_exposure: number | null;
   score_eyes: number | null;
+  n_faces: number | null;
+  faces_json: string | null;
   score_aesthetic: number | null;
   score_overall: number | null;
   thumb_path: string | null;
@@ -38,6 +43,15 @@ export interface CropRect {
   top: number;
   right: number;
   bottom: number;
+}
+
+// One detected face, all coordinates normalized 0..1 of the scored image.
+// Mirror of the worker's FaceDetail, parsed from ImageRow.faces_json.
+export interface FaceDetection {
+  box: [number, number, number, number]; // x, y, w, h
+  eyes_open: number; // 0..10
+  left_eye: [number, number] | null; // subject's left eye centre (image right)
+  right_eye: [number, number] | null; // subject's right eye centre (image left)
 }
 
 export interface ShootProgress {
