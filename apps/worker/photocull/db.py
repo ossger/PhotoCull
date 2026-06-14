@@ -31,6 +31,10 @@ CREATE TABLE IF NOT EXISTS image (
     width           INTEGER,
     height          INTEGER,
     orientation     INTEGER,
+    -- Camera AF / focus-detection (from MakerNotes via exiftool)
+    focus_mode          TEXT,      -- One-Shot AF / AI Servo / AF-C / Manual ...
+    af_area_mode        TEXT,      -- Single / Zone / Auto / Face+Tracking ...
+    af_points_in_focus  TEXT,      -- which AF point(s) reported in-focus
     -- Perceptual hash (Phase 2)
     phash           TEXT,
     -- Scene grouping (Phase 2)
@@ -43,6 +47,8 @@ CREATE TABLE IF NOT EXISTS image (
     score_focus     REAL,
     score_exposure  REAL,
     score_eyes      REAL,
+    n_faces         INTEGER,   -- detected face count (NULL = faces not scored)
+    faces_json      TEXT,      -- per-face boxes + eye centres as JSON (NULL = none)
     score_aesthetic REAL,
     score_overall   REAL,
     -- Cached previews (relative to cache dir)
@@ -105,6 +111,13 @@ def _migrate(conn: sqlite3.Connection) -> None:
     for col in ("crop_left", "crop_top", "crop_right", "crop_bottom"):
         if col not in cols:
             conn.execute(f"ALTER TABLE image ADD COLUMN {col} REAL")
+    for col in ("focus_mode", "af_area_mode", "af_points_in_focus"):
+        if col not in cols:
+            conn.execute(f"ALTER TABLE image ADD COLUMN {col} TEXT")
+    if "n_faces" not in cols:
+        conn.execute("ALTER TABLE image ADD COLUMN n_faces INTEGER")
+    if "faces_json" not in cols:
+        conn.execute("ALTER TABLE image ADD COLUMN faces_json TEXT")
 
 
 def initialise_shoot(conn: sqlite3.Connection, root_path: Path) -> None:
@@ -121,8 +134,10 @@ def upsert_image(conn: sqlite3.Connection, row: dict[str, Any]) -> int:
         "captured_at", "camera_make", "camera_model", "lens",
         "iso", "shutter", "aperture", "focal_length",
         "width", "height", "orientation",
+        "focus_mode", "af_area_mode", "af_points_in_focus",
         "thumb_path", "preview_path", "full_path",
-        "phash", "score_focus", "score_exposure", "score_eyes", "score_overall",
+        "phash", "score_focus", "score_exposure", "score_eyes",
+        "n_faces", "faces_json", "score_overall",
     ]
     placeholders = ", ".join(["?"] * len(cols))
     updates = ", ".join(f"{c}=excluded.{c}" for c in cols if c != "rel_path")

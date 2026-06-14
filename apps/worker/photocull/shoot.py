@@ -16,6 +16,7 @@ from typing import Any, Callable
 
 from .db import connect, initialise_shoot, upsert_image
 from .ingest import ingest_one, walk_folder
+from . import focus_meta
 from . import scenes as scenes_mod
 from .export import xmp as xmp_export
 
@@ -51,9 +52,14 @@ class Shoot:
         if total == 0:
             return 0
 
+        # Camera AF / focus-detection metadata for the whole shoot in one
+        # batched exiftool pass (far faster than spawning per file). A miss
+        # just means that file gets no AF fields — never fatal.
+        focus_map = focus_meta.read_focus_batch(files)
+
         def _do(p: Path):
             try:
-                return ingest_one(p, self.root, self.cache_dir)
+                return ingest_one(p, self.root, self.cache_dir, focus=focus_map.get(p))
             except Exception as exc:  # noqa: BLE001 - log and keep going
                 log.warning("ingest failed for %s: %s", p, exc)
                 return None
@@ -81,8 +87,10 @@ class Shoot:
             """
             SELECT id, rel_path, filename, captured_at, camera_make, camera_model, lens,
                    iso, shutter, aperture, focal_length, width, height, orientation,
+                   focus_mode, af_area_mode, af_points_in_focus,
                    pick, stars, color_label, scene_id, phash,
-                   score_focus, score_exposure, score_eyes, score_aesthetic, score_overall,
+                   score_focus, score_exposure, score_eyes, n_faces, faces_json,
+                   score_aesthetic, score_overall,
                    thumb_path, preview_path, full_path,
                    crop_left, crop_top, crop_right, crop_bottom
             FROM image

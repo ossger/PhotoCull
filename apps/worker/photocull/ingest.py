@@ -22,6 +22,7 @@ from .scoring import exposure as exposure_score
 from .scoring import faces as faces_score
 from .scoring.aggregate import Scores, overall as overall_score
 from . import raw as raw_decode
+from . import focus_meta
 
 log = logging.getLogger(__name__)
 
@@ -54,6 +55,9 @@ class IngestedImage:
     width: int | None
     height: int | None
     orientation: int | None
+    focus_mode: str | None
+    af_area_mode: str | None
+    af_points_in_focus: str | None
     thumb_path: str | None
     preview_path: str | None
     full_path: str | None
@@ -61,6 +65,8 @@ class IngestedImage:
     score_focus: float | None
     score_exposure: float | None
     score_eyes: float | None
+    n_faces: int | None
+    faces_json: str | None
     score_overall: float | None
 
 
@@ -159,6 +165,7 @@ def ingest_one(
     src: Path,
     root: Path,
     cache_dir: Path,
+    focus: focus_meta.FocusMeta | None = None,
 ) -> IngestedImage:
     """Open one image, extract EXIF, write thumb + preview JPEGs to the cache.
 
@@ -188,6 +195,9 @@ def ingest_one(
             width=width,
             height=height,
             orientation=orientation,
+            focus_mode=focus.focus_mode if focus else None,
+            af_area_mode=focus.af_area_mode if focus else None,
+            af_points_in_focus=focus.af_points_in_focus if focus else None,
             thumb_path=None,
             preview_path=None,
             full_path=None,
@@ -195,6 +205,8 @@ def ingest_one(
             score_focus=None,
             score_exposure=None,
             score_eyes=None,
+            n_faces=None,
+            faces_json=None,
             score_overall=None,
         )
 
@@ -254,10 +266,12 @@ def ingest_one(
     ingested.score_focus = sharpness_score.score_path(preview_path)
     ingested.score_exposure = exposure_score.score_path(preview_path)
     try:
-        eyes, _n = faces_score.score_path(preview_path)
-        ingested.score_eyes = eyes
+        faces_result = faces_score.detect_path(preview_path)
+        ingested.score_eyes = faces_result.score
+        ingested.n_faces = faces_result.n_faces
+        ingested.faces_json = faces_score.serialize_faces(faces_result.faces)
     except Exception as exc:  # noqa: BLE001 - face model failures shouldn't kill ingest
-        log.warning("faces score failed for %s: %s", src, exc)
+        log.warning("faces detection failed for %s: %s", src, exc)
 
     ingested.score_overall = overall_score(
         Scores(
