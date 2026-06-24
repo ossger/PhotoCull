@@ -44,6 +44,31 @@ apps/
 packaging/    Per-OS build scripts (later)
 ```
 
+## Organizing raw captures (`organize`)
+
+A standalone CLI — separate from the desktop app — that tidies memory cards
+*before* culling. Drop your DJI / Canon dumps into `_RawIngest/`, then run:
+
+```bash
+# from the repo root, with the venv active:
+python -m photocull.organize              # move everything into PhotoLibrary/
+python -m photocull.organize --dry-run    # preview the plan, move nothing
+python -m photocull.organize --label Beach   # override the per-folder source token
+```
+
+It reads each file's capture date + camera (EXIF, one batched exiftool pass) and
+**moves** it into a date-plus-source tree:
+
+```
+PhotoLibrary/2026/2026-06-24_DJI-Drone/DJI_0001.DNG
+PhotoLibrary/2026/2026-06-25_Canon-R6mkii/R6_3920.CR3
+```
+
+The source token comes from the camera (DJI drone vs Canon body); files with no
+EXIF date fall back to file modification time. Collisions are never overwritten
+— identical files are skipped, differing ones get a numeric suffix. `_RawIngest/`
+and `PhotoLibrary/` are git-ignored. (Google/iCloud import is a future source.)
+
 ## Roadmap
 
 - **Phase 1** — walking skeleton: folder pick, JPEG ingest, virtualized grid, star/pick hotkeys

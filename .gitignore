@@ -43,6 +43,10 @@ Thumbs.db
 *.swp
 *~
 
+# Photo library + ingest inbox (organize.py) — never commit photos
+/_RawIngest/
+/PhotoLibrary/
+
 # App caches (per-shoot)
 .photocull-cache/
 *.shoot.db
