@@ -28,6 +28,8 @@ try {
         --hidden-import uvicorn.protocols.http.auto `
         --hidden-import uvicorn.protocols.websockets.auto `
         --hidden-import uvicorn.lifespan.on `
+        --collect-all mediapipe `
+        --collect-all rawpy `
         (Join-Path $worker "photocull/server.py")
 } finally {
     Pop-Location

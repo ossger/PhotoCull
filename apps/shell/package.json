@@ -42,12 +42,16 @@
     ],
     "extraResources": [
       {
-        "from": "../worker/dist-bin",
+        "from": "../worker/dist-bin/photocull-worker",
         "to": "worker",
         "filters": ["**/*"]
       }
     ],
-    "mac": { "target": "dmg", "category": "public.app-category.photography" },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.photography",
+      "identity": null
+    },
     "win": { "target": "nsis" }
   }
 }
