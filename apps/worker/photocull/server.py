@@ -122,7 +122,7 @@ async def open_shoot(body: OpenShootBody) -> dict[str, Any]:
         _shoot = None
 
     _shoot = Shoot(root)
-    _set_progress(0, 0, "starting")
+    _set_progress(0, 1, "starting")
 
     async def _run_ingest() -> None:
         loop = asyncio.get_running_loop()
