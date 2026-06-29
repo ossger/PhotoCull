@@ -152,17 +152,19 @@ export function Loupe() {
   // Auto-snap the loupe to the subject's eyes once the frame's pixels are ready
   // (naturalSize), and again when the full-res image swaps in (sharpening the
   // same view). Toggling eyeZoom off returns to fit. Skipped in crop mode and
-  // on frames with no detected face.
+  // on frames with no detected face. Also suppressed while the face overlay is
+  // shown — the overlay is only valid at fit scale, so inspecting faces (F) and
+  // pixel-peeping the eyes (E) are deliberately distinct views.
   useEffect(() => {
     if (cropMode || !naturalSize) return;
-    if (!eyeZoom) {
+    if (!eyeZoom || showFaces) {
       zoom.reset();
       return;
     }
     const target = eyeRectForFaces(facesRef.current);
     if (target) zoom.zoomToRect(target);
     else zoom.reset();
-  }, [eyeZoom, cropMode, naturalSize]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [eyeZoom, showFaces, cropMode, naturalSize]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The face overlay shares the crop overlay's image rect, which is only valid
   // in fit view (it's drawn in the untransformed outer container). Hide it while
@@ -310,7 +312,7 @@ export function Loupe() {
           <ScoreChip label="focus" value={image.score_focus} />
           <ScoreChip label="exp" value={image.score_exposure} />
           <ScoreChip label="eyes" value={image.score_eyes} />
-          {image.n_faces != null && image.n_faces > 0 && (
+          {image.n_faces != null && image.n_faces > 0 ? (
             <button
               type="button"
               onClick={toggleFaces}
@@ -321,6 +323,12 @@ export function Loupe() {
             >
               {image.n_faces} {image.n_faces === 1 ? "face" : "faces"}
             </button>
+          ) : (
+            image.n_faces === 0 && (
+              <span className="text-xs text-muted" title="Face detection ran; no faces found">
+                no faces
+              </span>
+            )
           )}
         </div>
         <div className="text-muted text-xs flex gap-3 whitespace-nowrap">

@@ -19,6 +19,14 @@ MEDIAPIPE_FACE_LANDMARKER_URL = (
     "face_landmarker/float16/latest/face_landmarker.task"
 )
 
+# YuNet face detector (OpenCV Zoo). Runs on the cv2 we already ship, detects
+# small/distant faces the Landmarker's short-range detector misses, and returns
+# a box + 5 landmarks. Loaded via cv2.FaceDetectorYN.
+YUNET_FACE_DETECTOR_URL = (
+    "https://github.com/opencv/opencv_zoo/raw/main/"
+    "models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
+)
+
 # Pin a known-good ExifTool version. Bump as needed.
 EXIFTOOL_VERSION = "13.59"
 EXIFTOOL_WIN_URL = f"https://exiftool.org/exiftool-{EXIFTOOL_VERSION}_64.zip"
@@ -57,6 +65,10 @@ def fetch(url: str, filename: str) -> Path:
 
 def face_landmarker_model() -> Path:
     return fetch(MEDIAPIPE_FACE_LANDMARKER_URL, "face_landmarker.task")
+
+
+def yunet_face_detector_model() -> Path:
+    return fetch(YUNET_FACE_DETECTOR_URL, "face_detection_yunet_2023mar.onnx")
 
 
 def find_exiftool() -> Path | None:

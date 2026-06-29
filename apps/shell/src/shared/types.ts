@@ -49,7 +49,7 @@ export interface CropRect {
 // Mirror of the worker's FaceDetail, parsed from ImageRow.faces_json.
 export interface FaceDetection {
   box: [number, number, number, number]; // x, y, w, h
-  eyes_open: number; // 0..10
+  eyes_open: number | null; // 0..10, or null when the face couldn't be eye-scored
   left_eye: [number, number] | null; // subject's left eye centre (image right)
   right_eye: [number, number] | null; // subject's right eye centre (image left)
 }

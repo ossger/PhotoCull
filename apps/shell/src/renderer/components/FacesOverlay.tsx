@@ -17,11 +17,15 @@ interface Props {
   faces: FaceDetection[];
 }
 
-function tierBorder(eyesOpen: number): string {
+// Null eyes_open = face detected but not eye-scored (heavy profile, etc.) — draw
+// it neutrally rather than as a "closed eyes" reject.
+function tierBorder(eyesOpen: number | null): string {
+  if (eyesOpen == null) return "border-muted";
   return eyesOpen >= 7 ? "border-pick" : eyesOpen >= 4 ? "border-yellow-300" : "border-reject";
 }
 
-function tierBg(eyesOpen: number): string {
+function tierBg(eyesOpen: number | null): string {
+  if (eyesOpen == null) return "bg-muted";
   return eyesOpen >= 7 ? "bg-pick" : eyesOpen >= 4 ? "bg-yellow-300" : "bg-reject";
 }
 
@@ -50,7 +54,7 @@ export function FacesOverlay({ imageBox, faces }: Props) {
                   font-semibold bg-black/70 text-ink whitespace-nowrap"
                 title="Eyes-open score (0–10)"
               >
-                eyes {f.eyes_open.toFixed(1)}
+                eyes {f.eyes_open == null ? "—" : f.eyes_open.toFixed(1)}
               </span>
             </div>
             {eyes.map(([ex, ey], j) => (
