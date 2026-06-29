@@ -1,8 +1,9 @@
-"""Standalone command: sort raw camera/drone captures into a dated library.
+"""Sort raw camera/drone captures into a dated library.
 
-This is intentionally **not** part of the Electron app — it's a CLI you run to
-tidy memory cards *before* culling. It only sorts (moves) files; it never
-scores, edits, or deletes them.
+This is the engine behind both the in-app **Import** panel (via the
+``/organize/*`` routes in ``server.py``) and the ``photocull-organize`` CLI
+below — you run it to tidy memory cards *before* culling. It only sorts (moves)
+files; it never scores, edits, or deletes them.
 
 It pulls every supported image out of an ingest inbox (default:
 ``<repo>/_RawIngest``), reads each file's capture date + camera in one batched
@@ -36,8 +37,12 @@ import sys
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
+from typing import Callable
 
 from . import models
+
+# Called after each file is processed: (done, total, current_filename).
+ProgressFn = Callable[[int, int, str], None]
 
 log = logging.getLogger(__name__)
 
@@ -236,16 +241,22 @@ class Result:
     renamed: int = 0
 
 
-def execute_moves(moves: list[Move], dry_run: bool) -> Result:
+def execute_moves(
+    moves: list[Move], dry_run: bool, progress: ProgressFn | None = None
+) -> Result:
     """Carry out (or, with dry_run, just print) the planned moves.
 
     Collision policy is conservative: identical-size files are treated as
     already-imported and skipped (source left in place for you to confirm);
     differing files get a numeric suffix. Nothing is ever overwritten, so a
     re-run after a partial import is safe.
+
+    ``progress`` (if given) is called once per file with (done, total, name) so
+    the GUI can show a moving bar; it fires for skipped files too.
     """
     result = Result()
-    for mv in moves:
+    total = len(moves)
+    for idx, mv in enumerate(moves):
         dest = mv.dest
         action = "move"
         if dest.exists():
@@ -263,17 +274,19 @@ def execute_moves(moves: list[Move], dry_run: bool) -> Result:
         if action == "skip":
             result.skipped += 1
             log.info("skip (already present): %s", mv.src.name)
-            continue
-
-        if dry_run:
-            log.info("would move: %s -> %s", mv.src.name, rel)
         else:
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(mv.src), str(dest))
-            log.info("moved: %s -> %s", mv.src.name, rel)
-        if action == "rename":
-            result.renamed += 1
-        result.moved += 1
+            if dry_run:
+                log.info("would move: %s -> %s", mv.src.name, rel)
+            else:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(mv.src), str(dest))
+                log.info("moved: %s -> %s", mv.src.name, rel)
+            if action == "rename":
+                result.renamed += 1
+            result.moved += 1
+
+        if progress is not None:
+            progress(idx + 1, total, mv.src.name)
     return result
 
 
@@ -302,11 +315,47 @@ def _prune_empty_dirs(root: Path) -> None:
                 pass
 
 
+def plan_preview(
+    source: Path,
+    library: Path,
+    label_override: str | None = None,
+) -> dict[str, object]:
+    """Dry scan for the GUI: what *would* move, grouped by destination folder.
+
+    Touches no files — it walks the inbox, reads capture metadata, and runs the
+    collision check in dry-run mode so the caller can show "N files into these
+    folders, M skipped as duplicates" before committing.
+    """
+    files = walk_inbox(source)
+    meta = read_capture_meta(files)
+    moves = plan_moves(files, meta, library, label_override=label_override)
+    dry = execute_moves(moves, dry_run=True)
+
+    counts: dict[str, int] = {}
+    for mv in moves:
+        folder = mv.dest.parent
+        try:
+            key = folder.relative_to(library).as_posix()
+        except ValueError:
+            key = str(folder)
+        counts[key] = counts.get(key, 0) + 1
+    groups = [{"folder": k, "count": v} for k, v in sorted(counts.items())]
+
+    return {
+        "total": len(files),
+        "groups": groups,
+        "would_move": dry.moved,
+        "would_skip": dry.skipped,
+        "would_rename": dry.renamed,
+    }
+
+
 def organize(
     source: Path,
     library: Path,
     label_override: str | None = None,
     dry_run: bool = False,
+    progress: ProgressFn | None = None,
 ) -> Result:
     """Top-level entry: scan source, plan, and move into library."""
     files = walk_inbox(source)
@@ -315,9 +364,11 @@ def organize(
         return Result()
     log.info("found %d image(s) under %s", len(files), source)
 
+    if progress is not None:
+        progress(0, len(files), "reading metadata")
     meta = read_capture_meta(files)
     moves = plan_moves(files, meta, library, label_override=label_override)
-    result = execute_moves(moves, dry_run=dry_run)
+    result = execute_moves(moves, dry_run=dry_run, progress=progress)
 
     if not dry_run:
         _prune_empty_dirs(source)

@@ -58,10 +58,17 @@ apps/
 packaging/    Per-OS build scripts (later)
 ```
 
-## Organizing raw captures (`organize`)
+## Organizing raw captures (Import / `organize`)
 
-A standalone CLI — separate from the desktop app — that tidies memory cards
-*before* culling. Drop your DJI / Canon dumps into `_RawIngest/`, then run:
+Tidy memory cards *before* culling — sort raw card dumps into a dated library
+tree. Available two ways, both driving the same engine:
+
+**In the app:** click **Import…** in the toolbar, choose the card/source and
+your library folders, hit **Preview** to see what will move (grouped by the
+dated folder it'll land in, with any duplicates flagged), then **Move**. The
+library destination is remembered between imports.
+
+**CLI** (no app needed). Drop your DJI / Canon dumps into `_RawIngest/`, then run:
 
 ```bash
 # from the repo root, with the venv active:

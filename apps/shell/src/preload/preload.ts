@@ -48,6 +48,11 @@ contextBridge.exposeInMainWorld("photocull", {
   listScenes: () => invoke("listScenes"),
   regroupScenes: () => invoke("regroupScenes"),
   exportXmp: (onlyPicked: boolean) => invoke("exportXmp", onlyPicked),
+  organizePlan: (source: string, library: string, label: string | null) =>
+    invoke("organizePlan", source, library, label),
+  organizeRun: (source: string, library: string, label: string | null) =>
+    invoke("organizeRun", source, library, label),
+  organizeProgress: () => invoke("organizeProgress"),
   setPick: (id: number, pick: -1 | 0 | 1) => invoke("setPick", id, pick),
   setStars: (id: number, stars: number) => invoke("setStars", id, stars),
   setColor: (id: number, color: string | null) =>

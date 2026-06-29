@@ -24,6 +24,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from . import __version__
+from . import organize as organize_mod
 from .shoot import Shoot
 
 log = logging.getLogger("photocull.server")
@@ -63,6 +64,21 @@ def _set_progress(done: int, total: int, current: str) -> None:
     _progress["current"] = current
 
 
+# Card-import (organize) progress; independent of the ingest progress above so a
+# user can organize a card without a shoot open. Replaced on each run.
+_organize_progress: dict[str, Any] = {
+    "state": "idle", "done": 0, "total": 0, "current": None,
+    "moved": 0, "skipped": 0, "renamed": 0,
+}
+
+
+def _set_organize_progress(done: int, total: int, current: str) -> None:
+    _organize_progress["state"] = "running"
+    _organize_progress["done"] = done
+    _organize_progress["total"] = total
+    _organize_progress["current"] = current
+
+
 # ----- models -----
 
 class OpenShootBody(BaseModel):
@@ -87,6 +103,14 @@ class CropBody(BaseModel):
     top: float | None = None
     right: float | None = None
     bottom: float | None = None
+
+
+class OrganizeBody(BaseModel):
+    """Sort a card/inbox folder into a dated library tree. Paths are explicit —
+    the CLI's repo-relative defaults are meaningless in a packaged app."""
+    source: str = Field(..., description="Inbox/card folder to pull images from")
+    library: str = Field(..., description="Library root to sort the dated folders into")
+    label: str | None = Field(None, description="Override the per-folder source token")
 
 
 # ----- app -----
@@ -173,6 +197,61 @@ class ExportBody(BaseModel):
 @app.post("/export/xmp", dependencies=[Depends(require_token)])
 def export_xmp(body: ExportBody) -> dict[str, Any]:
     return _require_shoot().export_xmp(only_picked=body.only_picked)
+
+
+# ----- card import / organize (independent of an open shoot) -----
+
+def _organize_paths(body: OrganizeBody) -> tuple[Path, Path, str | None]:
+    source = Path(body.source).expanduser()
+    library = Path(body.library).expanduser()
+    if not source.is_dir():
+        raise HTTPException(404, f"source folder not found: {source}")
+    if not body.library.strip():
+        raise HTTPException(400, "library path is required")
+    label = (body.label or "").strip() or None
+    return source, library, label
+
+
+@app.post("/organize/plan", dependencies=[Depends(require_token)])
+def organize_plan(body: OrganizeBody) -> dict[str, Any]:
+    """Dry preview: how many images, grouped by the dated folder they'd land in."""
+    source, library, label = _organize_paths(body)
+    return organize_mod.plan_preview(source, library, label_override=label)
+
+
+@app.post("/organize/run", dependencies=[Depends(require_token)])
+async def organize_run(body: OrganizeBody) -> dict[str, Any]:
+    """Move the card into the library in the background; poll /organize/progress."""
+    source, library, label = _organize_paths(body)
+    total = len(organize_mod.walk_inbox(source))
+    _organize_progress.update(
+        state="complete" if total == 0 else "running",
+        done=0, total=total, current=None, moved=0, skipped=0, renamed=0,
+    )
+    if total == 0:
+        return {"started": False, "total": 0}
+
+    async def _run() -> None:
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: organize_mod.organize(
+                source, library, label_override=label, dry_run=False,
+                progress=_set_organize_progress,
+            ),
+        )
+        _organize_progress.update(
+            state="complete", done=result.moved + result.skipped, total=total,
+            current=None, moved=result.moved, skipped=result.skipped, renamed=result.renamed,
+        )
+
+    asyncio.create_task(_run())
+    return {"started": True, "total": total}
+
+
+@app.get("/organize/progress", dependencies=[Depends(require_token)])
+def organize_progress() -> dict[str, Any]:
+    return dict(_organize_progress)
 
 
 @app.get("/images/{image_id}", dependencies=[Depends(require_token)])

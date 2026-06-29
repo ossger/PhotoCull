@@ -77,6 +77,38 @@ export interface OpenShootResult {
   cache: string;
 }
 
+// ----- card import / organize -----
+
+// One destination folder in an import plan, e.g. "2026/2026-06-24_DJI-Drone".
+export interface OrganizeGroup {
+  folder: string;
+  count: number;
+}
+
+// Dry preview of what an import would do (no files touched).
+export interface OrganizePlan {
+  total: number;
+  groups: OrganizeGroup[];
+  would_move: number;
+  would_skip: number;
+  would_rename: number;
+}
+
+export interface OrganizeRunResult {
+  started: boolean;
+  total: number;
+}
+
+export interface OrganizeProgress {
+  state: "idle" | "running" | "complete";
+  done: number;
+  total: number;
+  current: string | null;
+  moved: number;
+  skipped: number;
+  renamed: number;
+}
+
 // The bridge exposed by the preload script to the renderer.
 export interface PhotoCullBridge {
   pickFolder(): Promise<string | null>;
@@ -86,6 +118,10 @@ export interface PhotoCullBridge {
   listScenes(): Promise<SceneRow[]>;
   regroupScenes(): Promise<{ scene_count: number }>;
   exportXmp(onlyPicked: boolean): Promise<{ written: number; failed: number; sidecars: string[] }>;
+  // Card import / organize. Paths are explicit (from folder pickers).
+  organizePlan(source: string, library: string, label: string | null): Promise<OrganizePlan>;
+  organizeRun(source: string, library: string, label: string | null): Promise<OrganizeRunResult>;
+  organizeProgress(): Promise<OrganizeProgress>;
   setPick(imageId: number, pick: -1 | 0 | 1): Promise<void>;
   setStars(imageId: number, stars: number): Promise<void>;
   setColor(imageId: number, color: string | null): Promise<void>;

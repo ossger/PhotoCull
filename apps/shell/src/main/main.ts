@@ -105,6 +105,26 @@ function registerIpc(): void {
     }),
   );
 
+  ipcMain.handle(
+    "organizePlan",
+    async (_e, source: string, library: string, label: string | null) =>
+      workerFetch("/organize/plan", {
+        method: "POST",
+        body: JSON.stringify({ source, library, label }),
+      }),
+  );
+
+  ipcMain.handle(
+    "organizeRun",
+    async (_e, source: string, library: string, label: string | null) =>
+      workerFetch("/organize/run", {
+        method: "POST",
+        body: JSON.stringify({ source, library, label }),
+      }),
+  );
+
+  ipcMain.handle("organizeProgress", async () => workerFetch("/organize/progress"));
+
   ipcMain.handle("setPick", async (_e, imageId: number, pick: number) =>
     workerFetch(`/images/${imageId}/pick`, {
       method: "POST",

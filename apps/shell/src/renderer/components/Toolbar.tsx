@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useStore } from "../store";
+import { OrganizeModal } from "./OrganizeModal";
 
 export function Toolbar() {
   const openFolder = useStore((s) => s.openFolder);
@@ -14,6 +15,7 @@ export function Toolbar() {
 
   const [exporting, setExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const pickCount = images.filter((i) => i.pick === 1).length;
 
@@ -56,6 +58,7 @@ export function Toolbar() {
   })();
 
   return (
+    <>
     <div className="h-12 px-4 flex items-center justify-between border-b border-line bg-panel">
       <div className="flex items-center gap-3 min-w-0">
         <span className="font-semibold tracking-tight">PhotoCull</span>
@@ -65,6 +68,14 @@ export function Toolbar() {
           className="px-3 py-1 rounded-md bg-panel2 hover:bg-line text-sm border border-line"
         >
           Open folder…
+        </button>
+        <button
+          type="button"
+          onClick={() => setImportOpen(true)}
+          title="Sort a memory card into your dated library before culling"
+          className="px-3 py-1 rounded-md bg-panel2 hover:bg-line text-sm border border-line"
+        >
+          Import…
         </button>
         <button
           type="button"
@@ -117,5 +128,7 @@ export function Toolbar() {
       </div>
       <div className="text-sm">{status}</div>
     </div>
+    {importOpen && <OrganizeModal onClose={() => setImportOpen(false)} />}
+    </>
   );
 }
