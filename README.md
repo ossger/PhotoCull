@@ -2,7 +2,9 @@
 
 A cross-platform desktop culling app for photographers. Inspired by Narrative Select: groups a shoot into **scenes**, scores each frame for **focus, eyes-open, exposure, and aesthetic**, then exports picks as **XMP sidecars** that Lightroom / Capture One pick up.
 
-> Status: Phase 1 (walking skeleton). See `apps/` for the Electron shell and Python sidecar.
+> Status: Phase 3 baseline — RAW pipeline, scene grouping, local scoring
+> (focus / eyes / exposure / faces), crop, and XMP export all work. Runs on
+> **Windows and macOS**. See `apps/` for the Electron shell and Python sidecar.
 
 ## Architecture
 
@@ -20,20 +22,32 @@ A cross-platform desktop culling app for photographers. Inspired by Narrative Se
 
 ## Dev setup
 
-Prereqs: **Node 20+**, **Python 3.11+**, and (later) **exiftool** on PATH.
+Prereqs: **Node 20+** and **Python 3.11+** on both Windows and macOS.
 
-```powershell
-# Install JS deps
+```bash
+# 1. JS deps
 npm install
 
-# Set up the Python sidecar in a venv
+# 2. Python sidecar in a venv AT THE REPO ROOT (sidecar.ts looks for .venv here)
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1   # or source .venv/bin/activate on macOS
-pip install -e apps/worker
+.\.venv\Scripts\Activate.ps1     # Windows (PowerShell)
+source .venv/bin/activate        # macOS
 
-# Run both (the shell will spawn the sidecar)
+# 3. Install the worker WITH the raw + ml extras. rawpy is imported at sidecar
+#    startup, so a base-only install won't boot the worker at this baseline.
+npm run worker:install           # = pip install -e "apps/worker[raw,ml]"
+
+# 4. Verify the environment (deps + exiftool) before launching:
+npm run doctor
+
+# 5. Run the app — Electron spawns the Python sidecar automatically:
 npm run dev
 ```
+
+**macOS:** install exiftool once — `brew install exiftool` — so capture-date
+sorting and camera AF metadata work. (On Windows a portable copy is downloaded
+automatically on first use.) The face/RAW model files also download on first
+run, so the first launch needs an internet connection.
 
 ## Project layout
 
@@ -71,7 +85,7 @@ and `PhotoLibrary/` are git-ignored. (Google/iCloud import is a future source.)
 
 ## Roadmap
 
-- **Phase 1** — walking skeleton: folder pick, JPEG ingest, virtualized grid, star/pick hotkeys
-- **Phase 2** — scene grouping, sharpness + exposure scoring, compare view
-- **Phase 3** — RAW pipeline, MediaPipe face/eyes, XMP export
-- **Phase 4** — aesthetic model, optional Claude/Google Vision API, CLIP smart scenes
+- **Phase 1 (done)** — walking skeleton: folder pick, JPEG ingest, virtualized grid, star/pick hotkeys
+- **Phase 2 (done)** — scene grouping, sharpness + exposure scoring, compare view
+- **Phase 3 (done)** — RAW pipeline, MediaPipe + YuNet face/eyes, XMP export
+- **Phase 4 (next)** — aesthetic model, optional Claude/Google Vision API, CLIP smart scenes

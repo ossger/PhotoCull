@@ -38,6 +38,7 @@ dev = [
 [project.scripts]
 photocull-worker = "photocull.server:cli"
 photocull-organize = "photocull.organize:cli"
+photocull-doctor = "photocull.doctor:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -1,23 +1,19 @@
-# Phase 1 quickstart
+# Quickstart
 
-The walking skeleton is wired up. Here's how to get it running.
+How to get PhotoCull running on **Windows or macOS**. (For the short version,
+see "Dev setup" in `README.md`.)
 
 ## One-time setup
 
 ### 1. Install Python 3.11+
 
-Python isn't on the machine yet — install one of these:
+- **Windows**: download from <https://www.python.org/downloads/> (any 3.11–3.13
+  build). During install, tick **"Add python.exe to PATH"**. Or
+  `winget install --id Python.Python.3.12 -e`.
+- **macOS**: `brew install python@3.12` (or download from python.org).
 
-- **Recommended**: download from <https://www.python.org/downloads/> (any 3.11, 3.12, or 3.13 build works). During install, tick **"Add python.exe to PATH"**.
-- Or via `winget`:
-  ```powershell
-  winget install --id Python.Python.3.12 -e
-  ```
-
-Verify in a **new** PowerShell window:
-```powershell
-python --version
-```
+Verify in a **new** terminal — `python --version` (Windows) /
+`python3 --version` (macOS).
 
 ### 2. Install Node dependencies (shell)
 
@@ -46,13 +42,31 @@ npm install
 
 ### 3. Install the Python sidecar
 
+Create a venv **at the repo root** (the Electron side looks for `.venv` here),
+then install the worker with the `raw` + `ml` extras — `rawpy` is imported at
+sidecar startup, so a base-only install won't boot the worker.
+
 ```powershell
+# Windows
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e apps/worker
+pip install -e "apps/worker[raw,ml]"
 ```
 
-(Optional: `pip install -e "apps/worker[dev]"` adds pytest + ruff for tests.)
+```bash
+# macOS
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e "apps/worker[raw,ml]"
+brew install exiftool      # capture-date + AF metadata; Windows auto-downloads it
+```
+
+(Use `[raw,ml,dev]` to also get pytest + ruff.) Then sanity-check the
+environment before launching:
+
+```bash
+npm run doctor
+```
 
 ## Run it
 
@@ -67,9 +81,8 @@ return before opening the window.
 
 ## Try it out
 
-1. Click **Open folder…** in the top-left and pick any folder of JPEGs (your
-   own shoot, or sample images). RAW support lands in Phase 3 — Phase 1
-   ingests `.jpg`, `.jpeg`, `.heic`, `.heif`.
+1. Click **Open folder…** in the top-left and pick a shoot folder. PhotoCull
+   ingests RAW (CR3 / NEF / ARW / DNG / …), JPEG, and HEIC.
 2. Watch the progress indicator: thumbnails appear in the left grid as the
    sidecar generates them. ≈200 photos should index in well under a minute.
 3. **Click** a thumbnail (or use **←/→**) to load it in the loupe pane.
@@ -100,9 +113,8 @@ pip install -e "apps/worker[dev]"
 pytest apps/worker
 ```
 
-## What's next (Phase 2)
+## What's next
 
-- Scene grouping by EXIF time gap + pHash similarity
-- Sharpness (Laplacian variance) and exposure (histogram) scores
-- Scene strip column in the UI
-- Compare view (2–4 frames synced)
+Phases 1–3 are done (RAW pipeline, scenes, scoring, crop, XMP export). Phase 4
+is the aesthetic model, optional cloud vision, and CLIP smart scenes — see the
+roadmap in `README.md`.

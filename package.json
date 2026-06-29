@@ -10,8 +10,9 @@
     "dev": "npm --workspace apps/shell run dev",
     "build": "npm --workspace apps/shell run build",
     "dist": "npm --workspace apps/shell run dist",
-    "worker:install": "python -m pip install -e apps/worker",
-    "worker:dev": "python -m photocull.server"
+    "worker:install": "python -m pip install -e \"apps/worker[raw,ml]\"",
+    "worker:dev": "python -m photocull.server",
+    "doctor": "python -m photocull.doctor"
   },
   "engines": {
     "node": ">=20"
