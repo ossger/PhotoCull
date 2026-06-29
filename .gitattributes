@@ -1,0 +1,28 @@
+# Normalize line endings. Text files are stored as LF in the repo; Git checks
+# them out with native endings per each machine's core.autocrlf. This keeps the
+# repo identical on Windows and macOS.
+* text=auto
+
+# Scripts that MUST stay LF — a CRLF shebang ('#!/usr/bin/env bash\r') is a
+# fatal "bad interpreter" error on macOS/Linux. This is the line-ending fix
+# that lets packaging/build-worker.sh actually run on the Mac.
+*.sh   text eol=lf
+*.bash text eol=lf
+
+# Windows-only scripts stay CRLF.
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary assets — never munge line endings or try to diff these.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.icns binary
+*.dmg  binary
+*.exe  binary
+*.task binary
+*.onnx binary
+*.db   binary
