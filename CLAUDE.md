@@ -5,9 +5,8 @@ into **scenes**, scores each frame (focus / eyes-open / exposure / aesthetic),
 and exports the picks as **XMP sidecars** that Lightroom / Capture One read.
 
 `README.md` has the user-facing setup. This file is for agents working in the
-code. **Note:** the README's "Phase 1 (walking skeleton)" status line is stale —
-the code is at the **Phase 3 baseline** (RAW pipeline, scenes, scoring incl.
-faces, crop, XMP export). Trust the code, not that line.
+code. The code is at the **Phase 3 baseline** (RAW pipeline, scenes, scoring
+incl. faces, crop, XMP export); the README's status line agrees.
 
 > Native runtime: Windows, git bash + PowerShell 7. Node ≥ 20, Python 3.11+.
 
