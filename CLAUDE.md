@@ -93,3 +93,20 @@ crop rect — these are what XMP export writes out.
   ML/RAW work in the worker, not the renderer.
 - Internal roadmap (separate from the repo-wide restructure phases): Phase 4 =
   aesthetic model, optional Claude/Google Vision API, CLIP smart scenes.
+
+---
+
+## Project Pulse — cross-project context
+
+Every project under `C:\projects` publishes a one-screen **pulse note** into the
+shared Obsidian vault; every session reads them all. Contract + template:
+`C:\projects\vault\Pulse\README.md`.
+
+- **Session start:** read `C:\projects\vault\Pulse\*.md` and carry over whatever
+  is relevant.
+- **Session end (substantive work only):** refresh
+  `C:\projects\vault\Pulse\Photography.md` — status, **where you left off** (this
+  is what others read instead of probing git WIP), next steps, decisions; bump
+  `updated:` — then commit **only that file** in the vault repo.
+- **Synced + committed — genericize sensitive detail.**
+- Edit only this project's own note, never another's.
