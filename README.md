@@ -2,9 +2,10 @@
 
 A cross-platform desktop culling app for photographers. Inspired by Narrative Select: groups a shoot into **scenes**, scores each frame for **focus, eyes-open, exposure, and aesthetic**, then exports picks as **XMP sidecars** that Lightroom / Capture One pick up.
 
-> Status: Phase 3 baseline — RAW pipeline, scene grouping, local scoring
-> (focus / eyes / exposure / faces), crop, and XMP export all work. Runs on
-> **Windows and macOS**. See `apps/` for the Electron shell and Python sidecar.
+> Status: Phase 3 baseline, Phase 4 underway — RAW pipeline, scene grouping,
+> local scoring (focus / eyes / exposure / aesthetic / faces), crop, and XMP
+> export all work. Runs on **Windows and macOS**. See `apps/` for the Electron
+> shell and Python sidecar.
 
 ## Architecture
 
@@ -95,4 +96,6 @@ and `PhotoLibrary/` are git-ignored. (Google/iCloud import is a future source.)
 - **Phase 1 (done)** — walking skeleton: folder pick, JPEG ingest, virtualized grid, star/pick hotkeys
 - **Phase 2 (done)** — scene grouping, sharpness + exposure scoring, compare view
 - **Phase 3 (done)** — RAW pipeline, MediaPipe + YuNet face/eyes, XMP export
-- **Phase 4 (next)** — aesthetic model, optional Claude/Google Vision API, CLIP smart scenes
+- **Phase 4 (in progress)** — local aesthetic scoring (contrast + colorfulness
+  heuristic, done); optional Claude/Google Vision API scoring and CLIP smart
+  scenes still to come

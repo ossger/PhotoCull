@@ -5,8 +5,9 @@ into **scenes**, scores each frame (focus / eyes-open / exposure / aesthetic),
 and exports the picks as **XMP sidecars** that Lightroom / Capture One read.
 
 `README.md` has the user-facing setup. This file is for agents working in the
-code. The code is at the **Phase 3 baseline** (RAW pipeline, scenes, scoring
-incl. faces, crop, XMP export); the README's status line agrees.
+code. The code is at the **Phase 3 baseline plus Phase 4 in progress** (RAW
+pipeline, scenes, scoring incl. faces + local aesthetic heuristic, crop, XMP
+export); the README's status line agrees.
 
 > Native runtime: Windows, git bash + PowerShell 7. Node ≥ 20, Python 3.11+.
 
@@ -91,7 +92,11 @@ crop rect — these are what XMP export writes out.
 - **Worker stays a clean package** (`photocull`) with tests; keep heavy
   ML/RAW work in the worker, not the renderer.
 - Internal roadmap (separate from the repo-wide restructure phases): Phase 4 =
-  aesthetic model, optional Claude/Google Vision API, CLIP smart scenes.
+  aesthetic model (local contrast/colorfulness heuristic done —
+  `scoring/aesthetic.py`), optional Claude/Google Vision API, CLIP smart
+  scenes. The latter two are still open: cloud API scoring needs an API-key
+  storage/settings story (none exists yet) before it can be wired end-to-end,
+  and CLIP smart scenes needs a model file decision.
 
 ---
 

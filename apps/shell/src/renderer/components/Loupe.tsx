@@ -311,6 +311,7 @@ export function Loupe() {
           <ScoreChip label="overall" value={image.score_overall} />
           <ScoreChip label="focus" value={image.score_focus} />
           <ScoreChip label="exp" value={image.score_exposure} />
+          <ScoreChip label="aesthetic" value={image.score_aesthetic} />
           <ScoreChip label="eyes" value={image.score_eyes} />
           {image.n_faces != null && image.n_faces > 0 ? (
             <button

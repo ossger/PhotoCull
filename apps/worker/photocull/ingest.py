@@ -20,6 +20,7 @@ from PIL import Image, ExifTags, ImageOps
 from .scoring import sharpness as sharpness_score
 from .scoring import exposure as exposure_score
 from .scoring import faces as faces_score
+from .scoring import aesthetic as aesthetic_score
 from .scoring.aggregate import Scores, overall as overall_score
 from . import raw as raw_decode
 from . import focus_meta
@@ -67,6 +68,7 @@ class IngestedImage:
     score_eyes: float | None
     n_faces: int | None
     faces_json: str | None
+    score_aesthetic: float | None
     score_overall: float | None
 
 
@@ -207,6 +209,7 @@ def ingest_one(
             score_eyes=None,
             n_faces=None,
             faces_json=None,
+            score_aesthetic=None,
             score_overall=None,
         )
 
@@ -265,6 +268,7 @@ def ingest_one(
 
     ingested.score_focus = sharpness_score.score_path(preview_path)
     ingested.score_exposure = exposure_score.score_path(preview_path)
+    ingested.score_aesthetic = aesthetic_score.score_path(preview_path)
     try:
         faces_result = faces_score.detect_path(preview_path)
         ingested.score_eyes = faces_result.score
@@ -278,6 +282,7 @@ def ingest_one(
             focus=ingested.score_focus,
             exposure=ingested.score_exposure,
             eyes=ingested.score_eyes,
+            aesthetic=ingested.score_aesthetic,
         )
     )
 

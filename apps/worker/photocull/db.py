@@ -118,6 +118,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE image ADD COLUMN n_faces INTEGER")
     if "faces_json" not in cols:
         conn.execute("ALTER TABLE image ADD COLUMN faces_json TEXT")
+    if "score_aesthetic" not in cols:
+        conn.execute("ALTER TABLE image ADD COLUMN score_aesthetic REAL")
 
 
 def initialise_shoot(conn: sqlite3.Connection, root_path: Path) -> None:
@@ -137,7 +139,7 @@ def upsert_image(conn: sqlite3.Connection, row: dict[str, Any]) -> int:
         "focus_mode", "af_area_mode", "af_points_in_focus",
         "thumb_path", "preview_path", "full_path",
         "phash", "score_focus", "score_exposure", "score_eyes",
-        "n_faces", "faces_json", "score_overall",
+        "n_faces", "faces_json", "score_aesthetic", "score_overall",
     ]
     placeholders = ", ".join(["?"] * len(cols))
     updates = ", ".join(f"{c}=excluded.{c}" for c in cols if c != "rel_path")
