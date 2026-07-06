@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .db import connect, initialise_shoot, upsert_image
-from .ingest import ingest_one, walk_folder
+from .ingest import group_sources, ingest_one, walk_folder
 from . import focus_meta
 from . import scenes as scenes_mod
 from .export import xmp as xmp_export
@@ -45,8 +45,13 @@ class Shoot:
         progress: Callable[[int, int, str], None] | None = None,
         max_workers: int = 4,
     ) -> int:
-        """Walk the folder, ingest every supported image, return the count."""
-        files = list(walk_folder(self.root))
+        """Walk the folder, ingest every supported image, return the count.
+
+        RAW+JPEG siblings (same folder, same stem) collapse to a single
+        canonical file — the RAW — so each capture is culled once. Any
+        shadowed sibling rows from a previous ingest are pruned below.
+        """
+        files, shadowed, shadow_map = group_sources(walk_folder(self.root))
         total = len(files)
         log.info("ingest: %d files under %s", total, self.root)
         if total == 0:
@@ -75,6 +80,66 @@ class Shoot:
                         upsert_image(self.conn, dataclasses.asdict(ingested))
                 if progress is not None:
                     progress(done, total, str(futures[fut]))
+        # Drop rows for siblings a previous ingest had inserted before pairing
+        # existed (e.g. the JPEG next to a RAW). Before dropping each one, carry
+        # its pick/star/color/crop over to the canonical RAW row if the RAW
+        # doesn't already have a decision of its own — otherwise a JPEG picked
+        # before its RAW sibling existed in the DB would silently lose that
+        # pick (see the 2026-07 RAW+JPEG collapse incident).
+        if shadowed:
+            with self._lock:
+                for shadow_path, canon_path in shadow_map.items():
+                    shadow_rel = shadow_path.relative_to(self.root).as_posix()
+                    canon_rel = canon_path.relative_to(self.root).as_posix()
+                    shadow_row = self.conn.execute(
+                        "SELECT pick, stars, color_label, crop_left, crop_top, "
+                        "crop_right, crop_bottom FROM image WHERE rel_path = ?",
+                        (shadow_rel,),
+                    ).fetchone()
+                    if shadow_row is None:
+                        continue
+                    canon_row = self.conn.execute(
+                        "SELECT pick, stars, color_label, crop_left "
+                        "FROM image WHERE rel_path = ?",
+                        (canon_rel,),
+                    ).fetchone()
+                    canon_undecided = (
+                        canon_row is not None
+                        and canon_row["pick"] == 0
+                        and canon_row["stars"] == 0
+                        and canon_row["color_label"] is None
+                        and canon_row["crop_left"] is None
+                    )
+                    has_decision = (
+                        shadow_row["pick"] != 0
+                        or shadow_row["stars"] != 0
+                        or shadow_row["color_label"] is not None
+                        or shadow_row["crop_left"] is not None
+                    )
+                    if canon_undecided and has_decision:
+                        self.conn.execute(
+                            "UPDATE image SET pick=?, stars=?, color_label=?, "
+                            "crop_left=?, crop_top=?, crop_right=?, crop_bottom=? "
+                            "WHERE rel_path = ?",
+                            (
+                                shadow_row["pick"],
+                                shadow_row["stars"],
+                                shadow_row["color_label"],
+                                shadow_row["crop_left"],
+                                shadow_row["crop_top"],
+                                shadow_row["crop_right"],
+                                shadow_row["crop_bottom"],
+                                canon_rel,
+                            ),
+                        )
+                shadow_rels = [(p.relative_to(self.root).as_posix(),) for p in shadowed]
+                # scene.cover_image_id is a FK into image; a stale scene may
+                # point at a shadowed row. regroup() rebuilds scenes just below,
+                # so clear the table first to avoid a FK-constraint failure.
+                self.conn.execute("DELETE FROM scene")
+                self.conn.executemany(
+                    "DELETE FROM image WHERE rel_path = ?", shadow_rels
+                )
         # Now that every row has captured_at + phash, group into scenes.
         with self._lock:
             scenes_mod.regroup(self.conn)

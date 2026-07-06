@@ -94,6 +94,7 @@ export function Loupe() {
   const [fullLoaded, setFullLoaded] = useState(false);
   const fullPreloaderRef = useRef<HTMLImageElement>(null);
   const containerInnerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null);
 
   const zoom = useZoomPan(naturalSize);
 
@@ -103,6 +104,21 @@ export function Loupe() {
     setNaturalSize(null);
     setFullLoaded(false);
   }, [image?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Track the display area's pixel size so a committed crop can be scaled to
+  // fill it (see cropBox below).
+  useLayoutEffect(() => {
+    const el = containerInnerRef.current;
+    if (!el) return;
+    const recompute = () => {
+      const r = el.getBoundingClientRect();
+      setContainerSize({ w: r.width, h: r.height });
+    };
+    recompute();
+    const ro = new ResizeObserver(recompute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Space toggles fit / 1:1 — disabled in crop mode.
   useEffect(() => {
@@ -198,6 +214,38 @@ export function Loupe() {
     return () => ro.disconnect();
   }, [cropMode, facesOverlayActive, fullLoaded, naturalSize, image?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // When a committed crop exists and we're not editing it, scale + position
+  // the (still full-resolution) <img> so only the cropped region is visible,
+  // filling the available display area — like the CropOverlay's math, but
+  // used to render the actual picture instead of a dimmed preview of it.
+  const cropRect =
+    image?.crop_left != null && image.crop_top != null && image.crop_right != null && image.crop_bottom != null
+      ? { left: image.crop_left, top: image.crop_top, right: image.crop_right, bottom: image.crop_bottom }
+      : null;
+
+  const cropBox = useMemo(() => {
+    if (!cropRect || !naturalSize || !containerSize) return null;
+    const cw = cropRect.right - cropRect.left;
+    const ch = cropRect.bottom - cropRect.top;
+    if (cw <= 0 || ch <= 0 || containerSize.w <= 0 || containerSize.h <= 0) return null;
+    const cropPxW = cw * naturalSize.w;
+    const cropPxH = ch * naturalSize.h;
+    const scale = Math.min(containerSize.w / cropPxW, containerSize.h / cropPxH);
+    const wrapperWidth = cropPxW * scale;
+    const wrapperHeight = cropPxH * scale;
+    const imgWidth = naturalSize.w * scale;
+    const imgHeight = naturalSize.h * scale;
+    return {
+      wrapperWidth,
+      wrapperHeight,
+      imgLeft: -cropRect.left * imgWidth,
+      imgTop: -cropRect.top * imgHeight,
+      imgWidth,
+      imgHeight,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cropRect?.left, cropRect?.top, cropRect?.right, cropRect?.bottom, naturalSize, containerSize]);
+
   if (!image) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted bg-bg">
@@ -217,6 +265,7 @@ export function Loupe() {
   const visibleSrc = useFull ? fullSrc : previewSrc;
 
   const hasCrop = image.crop_left != null;
+  const showCropped = hasCrop && !cropMode && cropBox != null;
   const naturalAspect = naturalSize ? naturalSize.w / naturalSize.h : 3 / 2;
 
   return (
@@ -241,18 +290,46 @@ export function Loupe() {
           }}
         >
           {visibleSrc ? (
-            <img
-              ref={zoom.imgRef}
-              src={visibleSrc}
-              alt={image.filename}
-              draggable={false}
-              decoding="async"
-              onLoad={(e) => {
-                const el = e.currentTarget;
-                setNaturalSize({ w: el.naturalWidth, h: el.naturalHeight });
-              }}
-              className="max-w-full max-h-full object-contain"
-            />
+            showCropped && cropBox ? (
+              <div
+                className="relative overflow-hidden"
+                style={{ width: cropBox.wrapperWidth, height: cropBox.wrapperHeight }}
+              >
+                <img
+                  ref={zoom.imgRef}
+                  src={visibleSrc}
+                  alt={image.filename}
+                  draggable={false}
+                  decoding="async"
+                  onLoad={(e) => {
+                    const el = e.currentTarget;
+                    setNaturalSize({ w: el.naturalWidth, h: el.naturalHeight });
+                  }}
+                  style={{
+                    position: "absolute",
+                    left: cropBox.imgLeft,
+                    top: cropBox.imgTop,
+                    width: cropBox.imgWidth,
+                    height: cropBox.imgHeight,
+                    maxWidth: "none",
+                    maxHeight: "none",
+                  }}
+                />
+              </div>
+            ) : (
+              <img
+                ref={zoom.imgRef}
+                src={visibleSrc}
+                alt={image.filename}
+                draggable={false}
+                decoding="async"
+                onLoad={(e) => {
+                  const el = e.currentTarget;
+                  setNaturalSize({ w: el.naturalWidth, h: el.naturalHeight });
+                }}
+                className="max-w-full max-h-full object-contain"
+              />
+            )
           ) : (
             <div className="text-muted">No preview yet</div>
           )}

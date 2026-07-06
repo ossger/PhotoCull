@@ -31,6 +31,10 @@ interface Store {
   // Auto-zoom the loupe to the subject's eyes on each frame (hotkey E). Persisted.
   eyeZoom: boolean;
   sortMode: SortMode;
+  // Filters applied within the current scene's image list (filmstrip + nav).
+  // 0 minStars means no star threshold.
+  picksOnly: boolean;
+  minStars: number;
   progress: ShootProgress;
   loading: boolean;
   error: string | null;
@@ -51,6 +55,8 @@ interface Store {
   exitCompare: () => void;
 
   setSortMode: (mode: SortMode) => void;
+  togglePicksOnly: () => void;
+  setMinStars: (n: number) => void;
 
   toggleFaces: () => void;
   toggleEyeZoom: () => void;
@@ -82,8 +88,41 @@ function sortByMode(images: ImageRow[], mode: SortMode): ImageRow[] {
   });
 }
 
-function sceneImageIds(images: ImageRow[], sceneId: number | null, mode: SortMode): number[] {
-  return sortByMode(images.filter((i) => i.scene_id === sceneId), mode).map((i) => i.id);
+function filterImages(images: ImageRow[], picksOnly: boolean, minStars: number): ImageRow[] {
+  return images.filter((i) => {
+    if (picksOnly && i.pick !== 1) return false;
+    if (minStars > 0 && i.stars < minStars) return false;
+    return true;
+  });
+}
+
+function computeVisibleScenes(
+  scenes: SceneRow[],
+  images: ImageRow[],
+  picksOnly: boolean,
+  minStars: number,
+): SceneRow[] {
+  if (!picksOnly && minStars === 0) return scenes; // fast path: no filter
+  const passing = new Set<number | null>();
+  for (const img of filterImages(images, picksOnly, minStars)) {
+    passing.add(img.scene_id);
+  }
+  return scenes.filter((s) => passing.has(s.id));
+}
+
+function sceneImageIds(
+  images: ImageRow[],
+  sceneId: number | null,
+  mode: SortMode,
+  picksOnly: boolean,
+  minStars: number,
+): number[] {
+  const inScene = filterImages(
+    images.filter((i) => i.scene_id === sceneId),
+    picksOnly,
+    minStars,
+  );
+  return sortByMode(inScene, mode).map((i) => i.id);
 }
 
 export const useStore = create<Store>((set, get) => ({
@@ -99,6 +138,8 @@ export const useStore = create<Store>((set, get) => ({
   showFaces: false,
   eyeZoom: loadEyeZoom(),
   sortMode: "rank",
+  picksOnly: false,
+  minStars: 0,
   progress: { state: "idle", done: 0, total: 0, current: null },
   loading: false,
   error: null,
@@ -138,11 +179,11 @@ export const useStore = create<Store>((set, get) => ({
           s.selectedSceneId != null && scenes.some((sc) => sc.id === s.selectedSceneId)
             ? s.selectedSceneId
             : scenes[0]?.id ?? null;
-        const sceneImages = images.filter((i) => i.scene_id === validSceneId);
+        const ids = sceneImageIds(images, validSceneId, s.sortMode, s.picksOnly, s.minStars);
         const validImageId =
-          s.selectedImageId != null && sceneImages.some((i) => i.id === s.selectedImageId)
+          s.selectedImageId != null && ids.includes(s.selectedImageId)
             ? s.selectedImageId
-            : sceneImages[0]?.id ?? null;
+            : ids[0] ?? null;
         return {
           images,
           scenes,
@@ -186,7 +227,7 @@ export const useStore = create<Store>((set, get) => ({
     set((s) => {
       // First in the *sorted* order — so in rank mode the best frame is shown
       // immediately when you click a scene.
-      const ids = sceneImageIds(s.images, id, s.sortMode);
+      const ids = sceneImageIds(s.images, id, s.sortMode, s.picksOnly, s.minStars);
       return {
         selectedSceneId: id,
         selectedImageId: ids[0] ?? null,
@@ -197,8 +238,8 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   moveImage(delta) {
-    const { images, selectedSceneId, selectedImageId, sortMode } = get();
-    const ids = sceneImageIds(images, selectedSceneId, sortMode);
+    const { images, selectedSceneId, selectedImageId, sortMode, picksOnly, minStars } = get();
+    const ids = sceneImageIds(images, selectedSceneId, sortMode, picksOnly, minStars);
     if (ids.length === 0) return;
     const idx = selectedImageId == null ? 0 : ids.indexOf(selectedImageId);
     const next = Math.max(0, Math.min(ids.length - 1, (idx < 0 ? 0 : idx) + delta));
@@ -206,11 +247,12 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   moveScene(delta) {
-    const { scenes, selectedSceneId } = get();
-    if (scenes.length === 0) return;
-    const idx = selectedSceneId == null ? 0 : scenes.findIndex((s) => s.id === selectedSceneId);
-    const next = Math.max(0, Math.min(scenes.length - 1, (idx < 0 ? 0 : idx) + delta));
-    const nextScene = scenes[next];
+    const { scenes, images, selectedSceneId, picksOnly, minStars } = get();
+    const visible = computeVisibleScenes(scenes, images, picksOnly, minStars);
+    if (visible.length === 0) return;
+    const idx = selectedSceneId == null ? 0 : visible.findIndex((s) => s.id === selectedSceneId);
+    const next = Math.max(0, Math.min(visible.length - 1, (idx < 0 ? 0 : idx) + delta));
+    const nextScene = visible[next];
     if (nextScene) get().selectScene(nextScene.id);
   },
 
@@ -243,6 +285,39 @@ export const useStore = create<Store>((set, get) => ({
 
   setSortMode(mode) {
     set({ sortMode: mode });
+  },
+
+  togglePicksOnly() {
+    set((s) => {
+      const picksOnly = !s.picksOnly;
+      const visible = computeVisibleScenes(s.scenes, s.images, picksOnly, s.minStars);
+      const selectedSceneId =
+        s.selectedSceneId != null && visible.some((sc) => sc.id === s.selectedSceneId)
+          ? s.selectedSceneId
+          : visible[0]?.id ?? null;
+      const ids = sceneImageIds(s.images, selectedSceneId, s.sortMode, picksOnly, s.minStars);
+      const selectedImageId =
+        selectedSceneId === s.selectedSceneId && s.selectedImageId != null && ids.includes(s.selectedImageId)
+          ? s.selectedImageId
+          : ids[0] ?? null;
+      return { picksOnly, selectedSceneId, selectedImageId };
+    });
+  },
+
+  setMinStars(n) {
+    set((s) => {
+      const visible = computeVisibleScenes(s.scenes, s.images, s.picksOnly, n);
+      const selectedSceneId =
+        s.selectedSceneId != null && visible.some((sc) => sc.id === s.selectedSceneId)
+          ? s.selectedSceneId
+          : visible[0]?.id ?? null;
+      const ids = sceneImageIds(s.images, selectedSceneId, s.sortMode, s.picksOnly, n);
+      const selectedImageId =
+        selectedSceneId === s.selectedSceneId && s.selectedImageId != null && ids.includes(s.selectedImageId)
+          ? s.selectedImageId
+          : ids[0] ?? null;
+      return { minStars: n, selectedSceneId, selectedImageId };
+    });
   },
 
   toggleFaces() {
@@ -367,8 +442,17 @@ export const useStore = create<Store>((set, get) => ({
 }));
 
 // Selector helpers
+// Scenes with at least one image passing the current filters (picksOnly /
+// minStars) — used by the sidebar so fully-filtered-out scenes don't show.
+export const visibleScenes = (state: Store): SceneRow[] =>
+  computeVisibleScenes(state.scenes, state.images, state.picksOnly, state.minStars);
+
 export const sceneImages = (state: Store): ImageRow[] =>
   sortByMode(
-    state.images.filter((i) => i.scene_id === state.selectedSceneId),
+    filterImages(
+      state.images.filter((i) => i.scene_id === state.selectedSceneId),
+      state.picksOnly,
+      state.minStars,
+    ),
     state.sortMode,
   );

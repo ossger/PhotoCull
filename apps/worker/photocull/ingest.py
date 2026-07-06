@@ -82,6 +82,46 @@ def walk_folder(root: Path) -> Iterable[Path]:
                 yield Path(dirpath) / name
 
 
+def group_sources(
+    files: Iterable[Path],
+) -> tuple[list[Path], list[Path], dict[Path, Path]]:
+    """Collapse RAW+JPEG/HEIC pairs into one canonical file per capture.
+
+    Two files pair when they share a folder and a filename stem
+    (case-insensitive) — the standard RAW+JPEG naming a camera produces
+    (``IMG_1234.CR3`` + ``IMG_1234.JPG``). The RAW wins as the canonical file
+    (it's what we cull and write the XMP sidecar next to); with no RAW present
+    the JPEG/HEIC is canonical. Singletons pass through as canonical.
+
+    Returns ``(canonical_files, shadowed_files, shadow_map)`` — canonicals in
+    the order they first appear; shadowed = the siblings we drop; shadow_map
+    maps each shadowed file to the canonical file it was paired with, so the
+    caller can carry the shadowed row's pick/star/etc. over before deleting it.
+    """
+    groups: dict[tuple[Path, str], list[Path]] = {}
+    order: list[tuple[Path, str]] = []
+    for f in files:
+        key = (f.parent, f.stem.lower())
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(f)
+
+    canonical: list[Path] = []
+    shadowed: list[Path] = []
+    shadow_map: dict[Path, Path] = {}
+    for key in order:
+        members = groups[key]
+        raws = sorted((m for m in members if m.suffix.lower() in RAW_EXTS), key=str)
+        chosen = raws[0] if raws else members[0]
+        canonical.append(chosen)
+        for m in members:
+            if m != chosen:
+                shadowed.append(m)
+                shadow_map[m] = chosen
+    return canonical, shadowed, shadow_map
+
+
 def _exif_dict(img: Image.Image) -> dict[str, object]:
     """Return a tag-name-keyed copy of the image's EXIF, or an empty dict."""
     raw = img.getexif()

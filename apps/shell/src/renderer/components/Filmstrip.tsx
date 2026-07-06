@@ -4,6 +4,7 @@ import { Thumbnail } from "./Thumbnail";
 
 export function Filmstrip() {
   const images = useStore(sceneImages);
+  const selectedSceneId = useStore((s) => s.selectedSceneId);
   const selectedImageId = useStore((s) => s.selectedImageId);
   const compareMode = useStore((s) => s.compareMode);
   const compareIds = useStore((s) => s.compareIds);
@@ -23,7 +24,7 @@ export function Filmstrip() {
   if (images.length === 0) {
     return (
       <div className="h-32 flex items-center justify-center text-muted text-sm border-t border-line bg-panel">
-        Select a scene to see its frames
+        {selectedSceneId == null ? "Select a scene to see its frames" : "No frames match the current filter"}
       </div>
     );
   }

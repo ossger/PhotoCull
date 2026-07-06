@@ -11,6 +11,7 @@ import { useStore } from "./store";
 //     C       toggle compare mode (multi-select inside the scene)
 //     F       toggle face / eye detection overlay
 //     E       toggle auto eye-zoom loupe (snap to subject's eyes)
+//     L       toggle "picks only" filter
 //     R       enter crop mode
 //     Shift+R clear any saved crop
 //     Esc     exit compare mode
@@ -25,6 +26,7 @@ export function useHotkeys() {
   const exitCompare = useStore((s) => s.exitCompare);
   const toggleFaces = useStore((s) => s.toggleFaces);
   const toggleEyeZoom = useStore((s) => s.toggleEyeZoom);
+  const togglePicksOnly = useStore((s) => s.togglePicksOnly);
   const setPick = useStore((s) => s.setPick);
   const setStars = useStore((s) => s.setStars);
   const enterCropMode = useStore((s) => s.enterCropMode);
@@ -95,6 +97,11 @@ export function useHotkeys() {
           toggleEyeZoom();
           e.preventDefault();
           break;
+        case "l":
+        case "L":
+          togglePicksOnly();
+          e.preventDefault();
+          break;
         case "r":
         case "R":
           if (e.shiftKey) {
@@ -138,6 +145,7 @@ export function useHotkeys() {
     exitCompare,
     toggleFaces,
     toggleEyeZoom,
+    togglePicksOnly,
     setPick,
     setStars,
     enterCropMode,
