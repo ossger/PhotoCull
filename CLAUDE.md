@@ -114,3 +114,13 @@ shared Obsidian vault; every session reads them all. Contract + template:
   `updated:` — then commit **only that file** in the vault repo.
 - **Synced + committed — genericize sensitive detail.**
 - Edit only this project's own note, never another's.
+
+## Security & data handling
+
+Binding rules: `C:\projects\SECURITY.md` (data tiers + checkpoints).
+
+- **This repo has a GitHub remote** — one of only two that do. Everything committed
+  must be **T0 (public-safe)**: no personal photos, no library paths, no API keys.
+  `_RawIngest/` and `PhotoLibrary/` are git-ignored and must stay that way.
+- When the Phase 4 cloud-vision option gets its key-storage story, keys are **T4** —
+  never a committed file, never a default-on dependency.
