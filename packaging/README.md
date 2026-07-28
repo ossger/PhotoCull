@@ -2,12 +2,31 @@
 
 Producing a double-clickable app (Windows `.exe` installer / macOS `.dmg`).
 
-> **Status: prepared, not yet validated end-to-end.** The dev stack
-> (`npm run dev`) is the supported way to run PhotoCull today. These scripts are
-> a starting point for packaging; expect to tune the PyInstaller flags on the
-> first real build. **Build on the target OS** — electron-builder does not
-> cross-compile the native Python sidecar, so build the macOS app on a Mac and
-> the Windows app on Windows.
+> **Status: validated on Windows through the worker freeze + Electron build;
+> the mac `.dmg` itself still needs a run on an actual Mac.** `npm run dev` is
+> still the supported way to run PhotoCull day to day. **Build on the target
+> OS** — electron-builder does not cross-compile the native Python sidecar, so
+> build the macOS app on a Mac and the Windows app on Windows.
+>
+> Bugs found and fixed while validating on Windows (all apply equally to a mac
+> build, since they're in shared config, not OS-specific code):
+> - `build-worker.sh`/`.ps1` pointed PyInstaller straight at `photocull/server.py`,
+>   which fails with "attempted relative import with no known parent package"
+>   because that file uses package-relative imports. Both scripts now build
+>   `apps/worker/entry.py` instead (a thin `from photocull.server import cli`
+>   wrapper) — point any future manual PyInstaller invocation at that file too.
+> - `apps/shell/tsconfig.json` had `rootDir: "src/renderer"` but `include`d
+>   `src/shared` too, and had no `paths` entry for the `@shared` alias Vite
+>   resolves at bundle time — both broke `tsc -b` (only `vite`-driven `npm run
+>   dev` ever exercised this path, so it went unnoticed). Fixed: `rootDir: "src"`
+>   plus `paths: { "@shared/*": ["src/shared/*"] }`.
+> - `apps/shell/package.json`'s `extraResources` entry used `filters` (electron-builder's
+>   schema wants `filter`, singular).
+> - electron-builder couldn't compute the electron version under npm workspaces
+>   (electron is hoisted to the repo-root `node_modules`, not `apps/shell`'s) —
+>   pinned `build.electronVersion` explicitly. **Re-pin this if `electron`'s
+>   version in `apps/shell/package.json` is ever bumped**, or the pinned value
+>   will silently drift from what's installed.
 
 ## How it fits together
 

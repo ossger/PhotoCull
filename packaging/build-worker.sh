@@ -24,4 +24,4 @@ pyinstaller \
     --hidden-import uvicorn.lifespan.on \
     --collect-all mediapipe \
     --collect-all rawpy \
-    "$worker/photocull/server.py"
+    "$worker/entry.py"

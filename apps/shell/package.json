@@ -34,6 +34,7 @@
     "vite-plugin-electron-renderer": "^0.14.5"
   },
   "build": {
+    "electronVersion": "30.5.1",
     "appId": "com.photocull.app",
     "productName": "PhotoCull",
     "files": [
@@ -44,7 +45,7 @@
       {
         "from": "../worker/dist-bin/photocull-worker",
         "to": "worker",
-        "filters": ["**/*"]
+        "filter": ["**/*"]
       }
     ],
     "mac": {

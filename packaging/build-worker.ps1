@@ -30,7 +30,7 @@ try {
         --hidden-import uvicorn.lifespan.on `
         --collect-all mediapipe `
         --collect-all rawpy `
-        (Join-Path $worker "photocull/server.py")
+        (Join-Path $worker "entry.py")
 } finally {
     Pop-Location
 }
