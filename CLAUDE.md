@@ -9,7 +9,9 @@ code. The code is at the **Phase 3 baseline plus Phase 4 in progress** (RAW
 pipeline, scenes, scoring incl. faces + local aesthetic heuristic, crop, XMP
 export); the README's status line agrees.
 
-> Native runtime: Windows, git bash + PowerShell 7. Node ≥ 20, Python 3.11+.
+> Runtime: **Windows and macOS** (both first-class; README ships both). Node ≥ 20,
+> Python 3.11+. XMP export shells out to **exiftool** — bundled/downloaded on
+> Windows, `brew install exiftool` on macOS.
 
 ---
 
@@ -65,13 +67,22 @@ talk to anything outside `window.photocull` + the `/files` URLs.
 npm install                       # JS deps (workspaces)
 python -m venv .venv              # at repo root; sidecar.ts looks for it here
 # activate it, then:
-npm run worker:install            # pip install -e apps/worker
+npm run worker:install            # pip install -e "apps/worker[raw,ml]" — the raw+ml
+                                  # extras (rawpy, mediapipe, onnxruntime) are imported
+                                  # at sidecar startup; a base install won't boot.
+npm run doctor                    # check deps + exiftool before launching
 npm run dev                       # Electron + Vite; main spawns the sidecar
 
 npm run worker:dev                # run the worker standalone (debugging)
+npm --workspace apps/shell run lint   # eslint (zero-warnings gate); worker lint: ruff check
 cd apps/worker && pytest          # worker tests (test_ingest, test_phase2, test_xmp, …)
+cd apps/worker && pytest tests/test_xmp.py::test_name   # a single test
 npm run build / npm run dist      # build / package
 ```
+
+Worker dev/test/lint deps live in the `[dev]` extra (`pytest`, `ruff`, `httpx`);
+cloud-vision deps in `[api]` (`anthropic`, `google-cloud-vision`) — installed
+only when that opt-in path is wired.
 
 The data model is a **per-shoot SQLite DB**. Image state includes pick
 (`-1` reject / `0` unset / `1` pick), star rating, color label, and an optional

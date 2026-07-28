@@ -12,6 +12,10 @@ export function Toolbar() {
   const setSortMode = useStore((s) => s.setSortMode);
   const eyeZoom = useStore((s) => s.eyeZoom);
   const toggleEyeZoom = useStore((s) => s.toggleEyeZoom);
+  const picksOnly = useStore((s) => s.picksOnly);
+  const togglePicksOnly = useStore((s) => s.togglePicksOnly);
+  const minStars = useStore((s) => s.minStars);
+  const setMinStars = useStore((s) => s.setMinStars);
 
   const [exporting, setExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
@@ -107,6 +111,29 @@ export function Toolbar() {
         >
           Eye-zoom {eyeZoom ? "on" : "off"}
         </button>
+        <button
+          type="button"
+          onClick={togglePicksOnly}
+          className={`text-xs rounded-md px-2.5 py-1 border bg-panel2 transition-colors ${
+            picksOnly ? "border-accent text-accent" : "border-line text-muted hover:text-ink"
+          }`}
+          title="Show only picked frames (L)"
+        >
+          Picks only
+        </button>
+        <select
+          value={minStars}
+          onChange={(e) => setMinStars(Number(e.target.value))}
+          className="text-xs bg-panel2 border border-line rounded-md px-2 py-1 text-muted"
+          title="Only show frames with at least this many stars"
+        >
+          <option value={0}>All stars</option>
+          <option value={1}>★1+</option>
+          <option value={2}>★2+</option>
+          <option value={3}>★3+</option>
+          <option value={4}>★4+</option>
+          <option value={5}>★5</option>
+        </select>
         <div className="flex items-center bg-panel2 border border-line rounded-md overflow-hidden text-xs">
           <button
             type="button"

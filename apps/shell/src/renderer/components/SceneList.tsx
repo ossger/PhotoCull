@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useStore } from "../store";
+import { useStore, visibleScenes } from "../store";
 import type { SceneRow } from "@shared/types";
 
 function fmtTime(iso: string | null): string {
@@ -45,7 +45,7 @@ function SceneCard({ scene, selected }: { scene: SceneRow; selected: boolean }) 
 }
 
 export function SceneList() {
-  const scenes = useStore((s) => s.scenes);
+  const scenes = useStore(visibleScenes);
   const selectedSceneId = useStore((s) => s.selectedSceneId);
   const containerRef = useRef<HTMLDivElement>(null);
 
