@@ -1,18 +1,17 @@
 import { useEffect, useRef } from "react";
 import { useStore, sceneImages } from "../store";
 import { Thumbnail } from "./Thumbnail";
-import { useMarquee, useThumbClick } from "../useMarquee";
 import { RankBadge } from "./RankBadge";
+import { useMarquee, useThumbClick } from "../useMarquee";
 
-export function Filmstrip() {
+// Contact-sheet grid — the natural home for marquee (click-drag) multi
+// -select. Toggled against the loupe with G / the toolbar's Grid/Loupe switch.
+export function GridView() {
   const images = useStore(sceneImages);
   const selectedSceneId = useStore((s) => s.selectedSceneId);
   const selectedImageId = useStore((s) => s.selectedImageId);
   const selectedIds = useStore((s) => s.selectedIds);
-  const compareMode = useStore((s) => s.compareMode);
-  const compareIds = useStore((s) => s.compareIds);
   const sortMode = useStore((s) => s.sortMode);
-  const toggleCompareMember = useStore((s) => s.toggleCompareMember);
   const containerRef = useRef<HTMLDivElement>(null);
   const onThumbClick = useThumbClick();
   const { onPointerDown, onClickCapture, marqueeRect, previewIds } = useMarquee(containerRef);
@@ -23,12 +22,12 @@ export function Filmstrip() {
     const el = containerRef.current.querySelector<HTMLElement>(
       `[data-image-id="${selectedImageId}"]`,
     );
-    el?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+    el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [selectedImageId]);
 
   if (images.length === 0) {
     return (
-      <div className="h-32 flex items-center justify-center text-muted text-sm border-t border-line bg-panel">
+      <div className="flex-1 min-h-0 flex items-center justify-center text-muted text-sm bg-bg">
         {selectedSceneId == null ? "Select a scene to see its frames" : "No frames match the current filter"}
       </div>
     );
@@ -37,26 +36,19 @@ export function Filmstrip() {
   return (
     <div
       ref={containerRef}
-      onPointerDown={compareMode ? undefined : onPointerDown}
-      onClickCapture={compareMode ? undefined : onClickCapture}
-      className="relative h-36 flex items-stretch gap-1.5 p-2 overflow-x-auto border-t border-line bg-panel"
+      onPointerDown={onPointerDown}
+      onClickCapture={onClickCapture}
+      className="relative flex-1 min-h-0 overflow-y-auto bg-bg p-3 grid gap-3 content-start
+        grid-cols-[repeat(auto-fill,minmax(9rem,1fr))]"
     >
       {images.map((img, idx) => (
-        <div
-          key={img.id}
-          data-image-id={img.id}
-          className="w-32 h-full flex-shrink-0 relative"
-        >
+        <div key={img.id} data-image-id={img.id} className="aspect-square relative">
           <Thumbnail
             image={img}
-            selected={img.id === selectedImageId && !compareMode}
-            inSelection={!compareMode && effectiveSelected.includes(img.id)}
-            inCompare={compareMode && compareIds.includes(img.id)}
+            selected={img.id === selectedImageId}
+            inSelection={effectiveSelected.includes(img.id)}
             showScore
-            onClick={(e) => {
-              if (compareMode) toggleCompareMember(img.id);
-              else onThumbClick(e, img.id);
-            }}
+            onClick={(e) => onThumbClick(e, img.id)}
           />
           {sortMode === "rank" && <RankBadge rank={idx + 1} total={images.length} />}
         </div>

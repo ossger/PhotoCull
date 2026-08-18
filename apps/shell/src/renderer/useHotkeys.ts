@@ -3,18 +3,21 @@ import { useStore } from "./store";
 
 // Hotkeys.
 //   Outside crop mode:
-//     ← / →   navigate within the current scene
-//     ↑ / ↓   move between scenes
-//     P / X   pick / reject
-//     U       unset pick
-//     0-5     star rating
-//     C       toggle compare mode (multi-select inside the scene)
-//     F       toggle face / eye detection overlay
-//     E       toggle auto eye-zoom loupe (snap to subject's eyes)
-//     L       toggle "picks only" filter
-//     R       enter crop mode
-//     Shift+R clear any saved crop
-//     Esc     exit compare mode
+//     ← / →       navigate within the current scene
+//     Shift+← / → extend the range selection
+//     ↑ / ↓       move between scenes
+//     ⌘/Ctrl+A    select all frames in the current scene
+//     P / X       pick / reject (applies to the whole selection)
+//     U           unset pick (applies to the whole selection)
+//     0-5         star rating (applies to the whole selection)
+//     G           toggle grid view / loupe
+//     C           toggle compare mode (seeded from the selection)
+//     F           toggle face / eye detection overlay
+//     E           toggle auto eye-zoom loupe (snap to subject's eyes)
+//     L           toggle "picks only" filter
+//     R           enter crop mode
+//     Shift+R     clear any saved crop
+//     Esc         crop mode > compare mode > clear multi-selection, in that order
 //   Inside crop mode:
 //     Enter   apply
 //     Esc     cancel
@@ -22,13 +25,16 @@ import { useStore } from "./store";
 export function useHotkeys() {
   const moveImage = useStore((s) => s.moveImage);
   const moveScene = useStore((s) => s.moveScene);
+  const selectAllInScene = useStore((s) => s.selectAllInScene);
+  const clearSelection = useStore((s) => s.clearSelection);
+  const toggleViewMode = useStore((s) => s.toggleViewMode);
   const toggleCompare = useStore((s) => s.toggleCompare);
   const exitCompare = useStore((s) => s.exitCompare);
   const toggleFaces = useStore((s) => s.toggleFaces);
   const toggleEyeZoom = useStore((s) => s.toggleEyeZoom);
   const togglePicksOnly = useStore((s) => s.togglePicksOnly);
-  const setPick = useStore((s) => s.setPick);
-  const setStars = useStore((s) => s.setStars);
+  const setPickMany = useStore((s) => s.setPickMany);
+  const setStarsMany = useStore((s) => s.setStarsMany);
   const enterCropMode = useStore((s) => s.enterCropMode);
   const exitCropMode = useStore((s) => s.exitCropMode);
   const applyCropDraft = useStore((s) => s.applyCropDraft);
@@ -42,6 +48,9 @@ export function useHotkeys() {
       }
       const state = useStore.getState();
       const id = state.selectedImageId;
+      // Pick/reject/star hotkeys apply to the whole multi-selection when
+      // there is one, falling back to just the primary frame.
+      const targetIds = state.selectedIds.length > 0 ? state.selectedIds : id != null ? [id] : [];
 
       // Crop mode steals most keys
       if (state.cropMode) {
@@ -67,12 +76,12 @@ export function useHotkeys() {
       switch (e.key) {
         case "ArrowRight":
         case "j":
-          moveImage(1);
+          moveImage(1, e.shiftKey);
           e.preventDefault();
           break;
         case "ArrowLeft":
         case "k":
-          moveImage(-1);
+          moveImage(-1, e.shiftKey);
           e.preventDefault();
           break;
         case "ArrowDown":
@@ -81,6 +90,18 @@ export function useHotkeys() {
           break;
         case "ArrowUp":
           moveScene(-1);
+          e.preventDefault();
+          break;
+        case "a":
+        case "A":
+          if (e.metaKey || e.ctrlKey) {
+            selectAllInScene();
+            e.preventDefault();
+          }
+          break;
+        case "g":
+        case "G":
+          toggleViewMode();
           e.preventDefault();
           break;
         case "c":
@@ -112,19 +133,25 @@ export function useHotkeys() {
           e.preventDefault();
           break;
         case "Escape":
-          exitCompare();
+          // Precedence: crop mode (handled above, returns early) > compare
+          // mode > clear a multi-selection.
+          if (state.compareMode) {
+            exitCompare();
+          } else {
+            clearSelection();
+          }
           break;
         case "p":
         case "P":
-          if (id != null) await setPick(id, 1);
+          if (targetIds.length) await setPickMany(targetIds, 1);
           break;
         case "x":
         case "X":
-          if (id != null) await setPick(id, -1);
+          if (targetIds.length) await setPickMany(targetIds, -1);
           break;
         case "u":
         case "U":
-          if (id != null) await setPick(id, 0);
+          if (targetIds.length) await setPickMany(targetIds, 0);
           break;
         case "0":
         case "1":
@@ -132,7 +159,7 @@ export function useHotkeys() {
         case "3":
         case "4":
         case "5":
-          if (id != null) await setStars(id, Number(e.key));
+          if (targetIds.length) await setStarsMany(targetIds, Number(e.key));
           break;
       }
     };
@@ -141,13 +168,16 @@ export function useHotkeys() {
   }, [
     moveImage,
     moveScene,
+    selectAllInScene,
+    clearSelection,
+    toggleViewMode,
     toggleCompare,
     exitCompare,
     toggleFaces,
     toggleEyeZoom,
     togglePicksOnly,
-    setPick,
-    setStars,
+    setPickMany,
+    setStarsMany,
     enterCropMode,
     exitCropMode,
     applyCropDraft,

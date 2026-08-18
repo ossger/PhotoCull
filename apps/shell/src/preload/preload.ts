@@ -57,6 +57,10 @@ contextBridge.exposeInMainWorld("photocull", {
   setStars: (id: number, stars: number) => invoke("setStars", id, stars),
   setColor: (id: number, color: string | null) =>
     invoke("setColor", id, color),
+  setPickMany: (ids: number[], pick: -1 | 0 | 1) => invoke("setPickMany", ids, pick),
+  setStarsMany: (ids: number[], stars: number) => invoke("setStarsMany", ids, stars),
+  setColorMany: (ids: number[], color: string | null) =>
+    invoke("setColorMany", ids, color),
   setCrop: (
     id: number,
     crop: { left: number; top: number; right: number; bottom: number } | null,

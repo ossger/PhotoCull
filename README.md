@@ -30,7 +30,8 @@ Prereqs: **Node 20+** and **Python 3.11+** on both Windows and macOS.
 npm install
 
 # 2. Python sidecar in a venv AT THE REPO ROOT (sidecar.ts looks for .venv here)
-python -m venv .venv
+python -m venv .venv             # Windows
+python3 -m venv .venv            # macOS
 .\.venv\Scripts\Activate.ps1     # Windows (PowerShell)
 source .venv/bin/activate        # macOS
 

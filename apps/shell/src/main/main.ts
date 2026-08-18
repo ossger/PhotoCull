@@ -146,6 +146,27 @@ function registerIpc(): void {
     }),
   );
 
+  ipcMain.handle("setPickMany", async (_e, imageIds: number[], pick: number) =>
+    workerFetch(`/images/batch/pick`, {
+      method: "POST",
+      body: JSON.stringify({ image_ids: imageIds, pick }),
+    }),
+  );
+
+  ipcMain.handle("setStarsMany", async (_e, imageIds: number[], stars: number) =>
+    workerFetch(`/images/batch/stars`, {
+      method: "POST",
+      body: JSON.stringify({ image_ids: imageIds, stars }),
+    }),
+  );
+
+  ipcMain.handle("setColorMany", async (_e, imageIds: number[], color: string | null) =>
+    workerFetch(`/images/batch/color`, {
+      method: "POST",
+      body: JSON.stringify({ image_ids: imageIds, color }),
+    }),
+  );
+
   ipcMain.handle(
     "setCrop",
     async (

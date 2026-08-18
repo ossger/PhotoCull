@@ -2,6 +2,7 @@ import { Toolbar } from "./components/Toolbar";
 import { SceneList } from "./components/SceneList";
 import { Filmstrip } from "./components/Filmstrip";
 import { Loupe } from "./components/Loupe";
+import { GridView } from "./components/GridView";
 import { CompareView } from "./components/CompareView";
 import { useStore } from "./store";
 import { useHotkeys } from "./useHotkeys";
@@ -9,6 +10,7 @@ import { useHotkeys } from "./useHotkeys";
 export function App() {
   useHotkeys();
   const compareMode = useStore((s) => s.compareMode);
+  const viewMode = useStore((s) => s.viewMode);
   return (
     <div className="h-full flex flex-col">
       <Toolbar />
@@ -20,10 +22,10 @@ export function App() {
           </div>
           <SceneList />
         </div>
-        {/* Center column: loupe (or compare) + filmstrip */}
+        {/* Center column: loupe/grid (or compare) + filmstrip */}
         <div className="flex-1 min-w-0 flex flex-col">
           <div className="flex-1 min-h-0 flex">
-            {compareMode ? <CompareView /> : <Loupe />}
+            {compareMode ? <CompareView /> : viewMode === "grid" ? <GridView /> : <Loupe />}
           </div>
           <Filmstrip />
           <HotkeyHint />
@@ -50,9 +52,12 @@ function HotkeyHint() {
         </>
       ) : (
         <>
-          <Key>←/→</Key> frame · <Key>↑/↓</Key> scene · <Key>P</Key> pick ·{" "}
-          <Key>X</Key> reject · <Key>U</Key> unset · <Key>0-5</Key> stars ·{" "}
-          <Key>C</Key> compare · <Key>R</Key> crop · <Key>E</Key> eye-zoom ·{" "}
+          <Key>←/→</Key> frame · <Key>↑/↓</Key> scene ·{" "}
+          <Key>⌘/Ctrl+click</Key> toggle · <Key>Shift+click</Key> range ·{" "}
+          <Key>Drag</Key> marquee · <Key>⌘/Ctrl+A</Key> select all ·{" "}
+          <Key>P</Key> pick · <Key>X</Key> reject · <Key>U</Key> unset ·{" "}
+          <Key>0-5</Key> stars · <Key>G</Key> grid · <Key>C</Key> compare ·{" "}
+          <Key>R</Key> crop · <Key>E</Key> eye-zoom ·{" "}
           <Key>Space</Key>/dbl-click 1:1
         </>
       )}

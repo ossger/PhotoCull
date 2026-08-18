@@ -4,9 +4,11 @@ import type { ImageRow } from "@shared/types";
 interface Props {
   image: ImageRow;
   selected: boolean;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void;
   showScore?: boolean;
   inCompare?: boolean;
+  // A non-primary member of a multi-selection (the primary uses `selected`).
+  inSelection?: boolean;
 }
 
 function Stars({ n }: { n: number }) {
@@ -47,12 +49,15 @@ export const Thumbnail = memo(function Thumbnail({
   onClick,
   showScore = false,
   inCompare = false,
+  inSelection = false,
 }: Props) {
   const src = image.thumb_path ? window.photocull.thumbUrl(image.thumb_path) : "";
   return (
     <button
       type="button"
       onClick={onClick}
+      draggable={false}
+      onPointerDown={(e) => e.preventDefault()}
       className={`relative group block w-full h-full overflow-hidden rounded-md
         border-2 transition-colors
         ${
@@ -60,7 +65,9 @@ export const Thumbnail = memo(function Thumbnail({
             ? "border-accent ring-2 ring-accent"
             : selected
               ? "border-accent"
-              : "border-transparent hover:border-line"
+              : inSelection
+                ? "border-accent/60"
+                : "border-transparent hover:border-line"
         }`}
       title={image.filename}
     >
@@ -76,6 +83,9 @@ export const Thumbnail = memo(function Thumbnail({
         <div className="w-full h-full bg-panel2 flex items-center justify-center text-muted text-xs">
           {image.filename}
         </div>
+      )}
+      {inSelection && !selected && !inCompare && (
+        <div className="absolute inset-0 bg-accent/15 pointer-events-none" />
       )}
       {showScore && image.score_overall != null && (
         <div className="absolute top-1 left-1 pointer-events-none">

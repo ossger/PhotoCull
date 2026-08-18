@@ -97,6 +97,21 @@ class ColorBody(BaseModel):
     color: str | None = None
 
 
+class BatchPickBody(BaseModel):
+    image_ids: list[int]
+    pick: int = Field(..., ge=-1, le=1)
+
+
+class BatchStarsBody(BaseModel):
+    image_ids: list[int]
+    stars: int = Field(..., ge=0, le=5)
+
+
+class BatchColorBody(BaseModel):
+    image_ids: list[int]
+    color: str | None = None
+
+
 class CropBody(BaseModel):
     """All four bounds are normalised 0..1 of the image. Send all-null to clear."""
     left: float | None = None
@@ -252,6 +267,33 @@ async def organize_run(body: OrganizeBody) -> dict[str, Any]:
 @app.get("/organize/progress", dependencies=[Depends(require_token)])
 def organize_progress() -> dict[str, Any]:
     return dict(_organize_progress)
+
+
+# ----- batch mutations (multi-select culling) -----
+#
+# NB: registered *before* the /images/{image_id}/... routes below. The
+# {image_id} path param has no type constraint at the Starlette routing
+# layer (only FastAPI's later parameter validation knows it's an int), so a
+# request to POST /images/batch/pick would otherwise match
+# /images/{image_id}/pick first (binding image_id="batch") and 422 rather
+# than falling through to these routes.
+
+@app.post("/images/batch/pick", dependencies=[Depends(require_token)])
+def set_pick_batch(body: BatchPickBody) -> dict[str, Any]:
+    _require_shoot().set_pick_many(body.image_ids, body.pick)
+    return {"image_ids": body.image_ids, "pick": body.pick}
+
+
+@app.post("/images/batch/stars", dependencies=[Depends(require_token)])
+def set_stars_batch(body: BatchStarsBody) -> dict[str, Any]:
+    _require_shoot().set_stars_many(body.image_ids, body.stars)
+    return {"image_ids": body.image_ids, "stars": body.stars}
+
+
+@app.post("/images/batch/color", dependencies=[Depends(require_token)])
+def set_color_batch(body: BatchColorBody) -> dict[str, Any]:
+    _require_shoot().set_color_label_many(body.image_ids, body.color)
+    return {"image_ids": body.image_ids, "color": body.color}
 
 
 @app.get("/images/{image_id}", dependencies=[Depends(require_token)])

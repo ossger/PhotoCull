@@ -16,6 +16,10 @@ export function Toolbar() {
   const togglePicksOnly = useStore((s) => s.togglePicksOnly);
   const minStars = useStore((s) => s.minStars);
   const setMinStars = useStore((s) => s.setMinStars);
+  const selectedIds = useStore((s) => s.selectedIds);
+  const setPickMany = useStore((s) => s.setPickMany);
+  const viewMode = useStore((s) => s.viewMode);
+  const toggleViewMode = useStore((s) => s.toggleViewMode);
 
   const [exporting, setExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
@@ -101,6 +105,53 @@ export function Toolbar() {
         )}
       </div>
       <div className="flex items-center gap-2">
+        {selectedIds.length > 1 && (
+          <div className="flex items-center gap-1.5 bg-panel2 border border-line rounded-md pl-2 pr-1 py-1 text-xs">
+            <span className="text-muted">{selectedIds.length} selected</span>
+            <button
+              type="button"
+              onClick={() => setPickMany(selectedIds, 1)}
+              className="px-2 py-0.5 rounded bg-pick/20 text-pick hover:bg-pick/30"
+              title="Pick all selected frames (P)"
+            >
+              Pick
+            </button>
+            <button
+              type="button"
+              onClick={() => setPickMany(selectedIds, -1)}
+              className="px-2 py-0.5 rounded bg-reject/20 text-reject hover:bg-reject/30"
+              title="Reject all selected frames (X)"
+            >
+              Reject
+            </button>
+            <button
+              type="button"
+              onClick={() => setPickMany(selectedIds, 0)}
+              className="px-2 py-0.5 rounded text-muted hover:text-ink hover:bg-line"
+              title="Unset pick on all selected frames (U)"
+            >
+              Unset
+            </button>
+          </div>
+        )}
+        <div className="flex items-center bg-panel2 border border-line rounded-md overflow-hidden text-xs">
+          <button
+            type="button"
+            onClick={() => viewMode !== "grid" && toggleViewMode()}
+            className={`px-2.5 py-1 ${viewMode === "grid" ? "bg-accent text-white" : "text-muted hover:text-ink"}`}
+            title="Contact-sheet grid, for marquee (drag) multi-select (G)"
+          >
+            Grid
+          </button>
+          <button
+            type="button"
+            onClick={() => viewMode !== "loupe" && toggleViewMode()}
+            className={`px-2.5 py-1 ${viewMode === "loupe" ? "bg-accent text-white" : "text-muted hover:text-ink"}`}
+            title="Single-frame loupe (G)"
+          >
+            Loupe
+          </button>
+        </div>
         <button
           type="button"
           onClick={toggleEyeZoom}

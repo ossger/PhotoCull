@@ -59,7 +59,7 @@ export function CompareView() {
   if (picked.length === 0) {
     return (
       <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-muted gap-2 bg-bg">
-        <div>Compare mode — click frames in the filmstrip to add up to 4.</div>
+        <div>Compare mode — select up to 4 frames, or click frames in the filmstrip to add them.</div>
         <div className="text-xs">Esc to exit</div>
       </div>
     );

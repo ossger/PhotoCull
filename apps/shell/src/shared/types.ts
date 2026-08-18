@@ -125,6 +125,9 @@ export interface PhotoCullBridge {
   setPick(imageId: number, pick: -1 | 0 | 1): Promise<void>;
   setStars(imageId: number, stars: number): Promise<void>;
   setColor(imageId: number, color: string | null): Promise<void>;
+  setPickMany(imageIds: number[], pick: -1 | 0 | 1): Promise<void>;
+  setStarsMany(imageIds: number[], stars: number): Promise<void>;
+  setColorMany(imageIds: number[], color: string | null): Promise<void>;
   setCrop(imageId: number, crop: CropRect | null): Promise<void>;
   // URLs (with auth) that <img src> can load
   thumbUrl(rel: string): string;

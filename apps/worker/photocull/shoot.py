@@ -247,6 +247,44 @@ class Shoot:
                 "UPDATE image SET color_label = ? WHERE id = ?", (label, image_id)
             )
 
+    # ---- batch mutations (multi-select culling) ----
+    #
+    # Same validation as the singular setters above, applied to a list of ids
+    # in one executemany — so selecting a burst of frames and pressing a
+    # hotkey is one DB round-trip, not one per frame. An empty id list is a
+    # deliberate no-op rather than an error.
+
+    def set_pick_many(self, image_ids: list[int], pick: int) -> None:
+        if pick not in (-1, 0, 1):
+            raise ValueError("pick must be -1, 0, or 1")
+        if not image_ids:
+            return
+        with self._lock:
+            self.conn.executemany(
+                "UPDATE image SET pick = ? WHERE id = ?",
+                [(pick, image_id) for image_id in image_ids],
+            )
+
+    def set_stars_many(self, image_ids: list[int], stars: int) -> None:
+        if not 0 <= stars <= 5:
+            raise ValueError("stars must be 0..5")
+        if not image_ids:
+            return
+        with self._lock:
+            self.conn.executemany(
+                "UPDATE image SET stars = ? WHERE id = ?",
+                [(stars, image_id) for image_id in image_ids],
+            )
+
+    def set_color_label_many(self, image_ids: list[int], label: str | None) -> None:
+        if not image_ids:
+            return
+        with self._lock:
+            self.conn.executemany(
+                "UPDATE image SET color_label = ? WHERE id = ?",
+                [(label, image_id) for image_id in image_ids],
+            )
+
     def set_crop(
         self,
         image_id: int,
