@@ -1,3 +1,4 @@
+# Owner: Ross (RG)   #RG
 # Build the Python sidecar as a one-folder PyInstaller bundle.
 # Output: apps/worker/dist-bin/photocull-worker(.exe) + dependencies
 #
