@@ -57,7 +57,7 @@ run, so the first launch needs an internet connection.
 apps/
   shell/      Electron + React frontend
   worker/     Python FastAPI sidecar (ML, RAW, XMP)
-packaging/    Per-OS build scripts (later)
+packaging/    Per-OS build scripts (worker freeze + electron-builder; see packaging/README.md)
 ```
 
 ## Organizing raw captures (Import / `organize`)

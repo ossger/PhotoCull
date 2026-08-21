@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "photocull-worker"
-version = "0.0.1"
+version = "0.1.0"
 description = "Python sidecar for the PhotoCull desktop app — RAW decode, EXIF, scene detection, AI scoring, XMP export."
 requires-python = ">=3.11"
 dependencies = [

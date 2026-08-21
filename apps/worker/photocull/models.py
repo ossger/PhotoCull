@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import sys
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -71,11 +72,37 @@ def yunet_face_detector_model() -> Path:
     return fetch(YUNET_FACE_DETECTOR_URL, "face_detection_yunet_2023mar.onnx")
 
 
+def _bundled_exiftool() -> Path | None:
+    """Locate exiftool staged into the PyInstaller bundle (packaging/build-worker.*).
+
+    Only present in a packaged app — `sys._MEIPASS` is PyInstaller's extraction
+    dir, set solely on a frozen build. Not exec-bit-safe by default: PyInstaller's
+    `--add-data` doesn't reliably preserve file mode, so we fix it up here rather
+    than at build time.
+    """
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass is None:
+        return None
+    bin_name = "exiftool.exe" if os.name == "nt" else "exiftool"
+    bundled = Path(meipass) / "exiftool" / bin_name
+    if not bundled.exists():
+        return None
+    if os.name != "nt":
+        try:
+            bundled.chmod(bundled.stat().st_mode | 0o111)
+        except OSError:
+            log.warning("could not set exec bit on bundled exiftool at %s", bundled)
+    return bundled
+
+
 def find_exiftool() -> Path | None:
-    """Locate an exiftool executable. PATH first, then our cache dir."""
+    """Locate an exiftool executable: PATH, then bundled (packaged app), then cache."""
     on_path = shutil.which("exiftool")
     if on_path:
         return Path(on_path)
+    bundled = _bundled_exiftool()
+    if bundled is not None:
+        return bundled
     cached = cache_dir() / "bin" / ("exiftool.exe" if os.name == "nt" else "exiftool")
     return cached if cached.exists() else None
 
@@ -83,8 +110,10 @@ def find_exiftool() -> Path | None:
 def ensure_exiftool() -> Path:
     """Return a path to exiftool, downloading the Windows portable build if needed.
 
-    macOS/Linux users are expected to install via `brew install exiftool` /
-    `apt install exiftool` — auto-installing on those platforms is out of scope.
+    Packaged apps ship a bundled exiftool (see packaging/build-worker.sh/.ps1), so
+    this only has real work to do for a from-source dev run: macOS/Linux dev
+    environments are expected to install via `brew install exiftool` /
+    `apt install exiftool`; a from-source Windows run downloads a portable copy.
     """
     found = find_exiftool()
     if found is not None:
