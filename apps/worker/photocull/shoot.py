@@ -188,17 +188,32 @@ class Shoot:
 
     # ---- export ----
 
-    def export_xmp(self, only_picked: bool = False) -> dict[str, Any]:
+    def export_xmp(
+        self, only_picked: bool = False, image_ids: list[int] | None = None
+    ) -> dict[str, Any]:
         """Write XMP sidecars for images. With only_picked=True, skip everything
-        not marked as a pick (pick != 1)."""
-        clause = "WHERE pick = 1" if only_picked else ""
+        not marked as a pick (pick != 1). With image_ids given, restrict to just
+        those rows — e.g. the renderer's current advanced-filter matches —
+        combinable with only_picked (both apply, AND'd together)."""
+        clauses: list[str] = []
+        params: list[Any] = []
+        if only_picked:
+            clauses.append("pick = 1")
+        if image_ids is not None:
+            if not image_ids:
+                return {"written": 0, "failed": 0, "sidecars": []}
+            placeholders = ",".join("?" for _ in image_ids)
+            clauses.append(f"id IN ({placeholders})")
+            params.extend(image_ids)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         cur = self.conn.execute(
             f"""
             SELECT rel_path, pick, stars, color_label, score_overall,
                    crop_left, crop_top, crop_right, crop_bottom
             FROM image
-            {clause}
-            """
+            {where}
+            """,
+            params,
         )
         fields: list[xmp_export.XmpFields] = []
         for r in cur.fetchall():

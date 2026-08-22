@@ -117,7 +117,10 @@ export interface PhotoCullBridge {
   listImages(): Promise<ImageRow[]>;
   listScenes(): Promise<SceneRow[]>;
   regroupScenes(): Promise<{ scene_count: number }>;
-  exportXmp(onlyPicked: boolean): Promise<{ written: number; failed: number; sidecars: string[] }>;
+  exportXmp(
+    onlyPicked: boolean,
+    imageIds?: number[],
+  ): Promise<{ written: number; failed: number; sidecars: string[] }>;
   // Card import / organize. Paths are explicit (from folder pickers).
   organizePlan(source: string, library: string, label: string | null): Promise<OrganizePlan>;
   organizeRun(source: string, library: string, label: string | null): Promise<OrganizeRunResult>;

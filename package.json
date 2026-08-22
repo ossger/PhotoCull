@@ -1,7 +1,7 @@
 {
   "name": "photocull",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Cross-platform culling app for photographers — scene detection + AI scoring",
   "workspaces": [
     "apps/shell"

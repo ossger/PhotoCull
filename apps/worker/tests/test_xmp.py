@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
 from pathlib import Path
 
 import piexif
+import pytest
 from PIL import Image
 
+from photocull import server
+from photocull.server import ExportBody
 from photocull.shoot import Shoot
 
 
@@ -108,7 +110,6 @@ def test_crop_round_trip_into_xmp(tmp_path: Path) -> None:
 
 
 def test_crop_rejects_invalid_bounds(tmp_path: Path) -> None:
-    import pytest
     _make_jpeg(tmp_path / "x.jpg")
     shoot = Shoot(tmp_path)
     try:
@@ -120,5 +121,80 @@ def test_crop_rejects_invalid_bounds(tmp_path: Path) -> None:
             shoot.set_crop(row["id"], 0.0, 0.0, 1.0, 1.5)  # bottom > 1
         with pytest.raises(ValueError):
             shoot.set_crop(row["id"], 0.0, None, 1.0, 1.0)  # partial
+    finally:
+        shoot.close()
+
+
+# ----- image_ids export (advanced-filter "Export matches") -----
+
+
+def test_export_by_image_ids_filters(tmp_path: Path) -> None:
+    for n in ("a.jpg", "b.jpg", "c.jpg"):
+        _make_jpeg(tmp_path / n)
+    shoot = Shoot(tmp_path)
+    try:
+        shoot.ingest()
+        rows = {r["filename"]: r for r in shoot.list_images()}
+        ids = [rows["a.jpg"]["id"], rows["c.jpg"]["id"]]
+
+        # None of these are picked — image_ids alone must still select them,
+        # independent of only_picked (the "export matches" path).
+        result = shoot.export_xmp(only_picked=False, image_ids=ids)
+        assert result["written"] == 2, result
+        assert (tmp_path / "a.jpg.xmp").exists()
+        assert (tmp_path / "c.jpg.xmp").exists()
+        assert not (tmp_path / "b.jpg.xmp").exists()
+    finally:
+        shoot.close()
+
+
+def test_export_by_image_ids_combines_with_only_picked(tmp_path: Path) -> None:
+    for n in ("a.jpg", "b.jpg"):
+        _make_jpeg(tmp_path / n)
+    shoot = Shoot(tmp_path)
+    try:
+        shoot.ingest()
+        rows = {r["filename"]: r for r in shoot.list_images()}
+        # a.jpg is picked and in the id list; b.jpg is in the id list but not
+        # picked — only_picked=True should still exclude it (AND, not OR).
+        shoot.set_pick(rows["a.jpg"]["id"], 1)
+        ids = [rows["a.jpg"]["id"], rows["b.jpg"]["id"]]
+
+        result = shoot.export_xmp(only_picked=True, image_ids=ids)
+        assert result["written"] == 1, result
+        assert (tmp_path / "a.jpg.xmp").exists()
+        assert not (tmp_path / "b.jpg.xmp").exists()
+    finally:
+        shoot.close()
+
+
+def test_export_by_image_ids_empty_list_writes_nothing(tmp_path: Path) -> None:
+    _make_jpeg(tmp_path / "a.jpg")
+    shoot = Shoot(tmp_path)
+    try:
+        shoot.ingest()
+        # An empty match set (e.g. an over-narrow filter) must short-circuit
+        # rather than fall through to "no id filter at all".
+        result = shoot.export_xmp(only_picked=False, image_ids=[])
+        assert result == {"written": 0, "failed": 0, "sidecars": []}
+        assert not (tmp_path / "a.jpg.xmp").exists()
+    finally:
+        shoot.close()
+
+
+def test_export_route_with_image_ids(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    for n in ("a.jpg", "b.jpg"):
+        _make_jpeg(tmp_path / n)
+    shoot = Shoot(tmp_path)
+    try:
+        shoot.ingest()
+        monkeypatch.setattr(server, "_shoot", shoot)
+        rows = {r["filename"]: r for r in shoot.list_images()}
+        ids = [rows["b.jpg"]["id"]]
+
+        result = server.export_xmp(ExportBody(only_picked=False, image_ids=ids))
+        assert result["written"] == 1, result
+        assert (tmp_path / "b.jpg.xmp").exists()
+        assert not (tmp_path / "a.jpg.xmp").exists()
     finally:
         shoot.close()
