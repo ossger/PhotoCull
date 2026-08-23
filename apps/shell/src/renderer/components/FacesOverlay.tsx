@@ -6,10 +6,17 @@ import type { FaceDetection } from "@shared/types";
  * detected eye centre.
  *
  * Like CropOverlay it takes the displayed image's bounding rect (post
- * object-contain) and maps the normalised 0..1 detection coords into pixels,
- * so it stays glued to the photo regardless of letterboxing. Shown only in
- * fit view — the parent hides it while zoomed so the untransformed box math
- * stays valid.
+ * object-contain, or post-crop when a crop is showing — see Loupe's
+ * zoom.boxRef) and maps the normalised 0..1 detection coords into pixels
+ * relative to it. The root is sized and clipped to that same rect, so a face
+ * the crop cuts through is clipped at the crop's edge rather than drawn past
+ * it into the letterboxed background. Shown only in fit view — the parent
+ * hides it while zoomed so the untransformed box math stays valid.
+ *
+ * Callers are expected to have already re-based `faces` into the displayed
+ * rect's own coordinate space when a crop is active (see Loupe's
+ * mapFaceIntoCrop) — this component just draws whatever normalised
+ * coordinates it's given against `imageBox`.
  */
 
 interface Props {
@@ -33,11 +40,14 @@ const EYE_DOT = 7;
 
 export function FacesOverlay({ imageBox, faces }: Props) {
   return (
-    <div className="absolute inset-0 pointer-events-none">
+    <div
+      className="absolute overflow-hidden pointer-events-none"
+      style={{ left: imageBox.left, top: imageBox.top, width: imageBox.width, height: imageBox.height }}
+    >
       {faces.map((f, i) => {
         const [x, y, w, h] = f.box;
-        const left = imageBox.left + x * imageBox.width;
-        const top = imageBox.top + y * imageBox.height;
+        const left = x * imageBox.width;
+        const top = y * imageBox.height;
         const width = w * imageBox.width;
         const height = h * imageBox.height;
         const eyes = [f.left_eye, f.right_eye].filter(
@@ -62,8 +72,8 @@ export function FacesOverlay({ imageBox, faces }: Props) {
                 key={j}
                 className={`absolute rounded-full ring-1 ring-black/70 ${tierBg(f.eyes_open)}`}
                 style={{
-                  left: imageBox.left + ex * imageBox.width - EYE_DOT / 2,
-                  top: imageBox.top + ey * imageBox.height - EYE_DOT / 2,
+                  left: ex * imageBox.width - EYE_DOT / 2,
+                  top: ey * imageBox.height - EYE_DOT / 2,
                   width: EYE_DOT,
                   height: EYE_DOT,
                 }}

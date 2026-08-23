@@ -1,12 +1,56 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { FaceDetection } from "@shared/types";
+import type { CropRect, FaceDetection } from "@shared/types";
 import { useStore } from "../store";
 import { useZoomPan } from "../useZoomPan";
 import { CropOverlay } from "./CropOverlay";
+import { CroppedImage } from "./CroppedImage";
 import { FacesOverlay } from "./FacesOverlay";
 
 function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
+}
+
+// Map a normalized 0..1 rect (eye-zoom target, face box) from full-frame
+// space into a saved crop's own 0..1 space, so the loupe's zoom/faces logic
+// can operate on what's actually displayed instead of the frame the crop cut
+// down from. Returns null for a degenerate (zero-area) crop.
+function mapIntoCrop(
+  rect: { x: number; y: number; w: number; h: number },
+  crop: CropRect,
+): { x: number; y: number; w: number; h: number } | null {
+  const cw = crop.right - crop.left;
+  const ch = crop.bottom - crop.top;
+  if (cw <= 0 || ch <= 0) return null;
+  return {
+    x: (rect.x - crop.left) / cw,
+    y: (rect.y - crop.top) / ch,
+    w: rect.w / cw,
+    h: rect.h / ch,
+  };
+}
+
+// Same mapping applied to a face detection's box + eye points. Returns null
+// when the crop doesn't touch the face at all, so callers can drop it rather
+// than draw an overlay off the visible picture.
+function mapFaceIntoCrop(f: FaceDetection, crop: CropRect): FaceDetection | null {
+  const cw = crop.right - crop.left;
+  const ch = crop.bottom - crop.top;
+  if (cw <= 0 || ch <= 0) return null;
+  const mapPt = ([x, y]: [number, number]): [number, number] => [
+    (x - crop.left) / cw,
+    (y - crop.top) / ch,
+  ];
+  const [fx, fy, fw, fh] = f.box;
+  const [bx, by] = mapPt([fx, fy]);
+  const bw = fw / cw;
+  const bh = fh / ch;
+  if (bx + bw <= 0 || bx >= 1 || by + bh <= 0 || by >= 1) return null;
+  return {
+    ...f,
+    box: [bx, by, bw, bh],
+    left_eye: f.left_eye ? mapPt(f.left_eye) : null,
+    right_eye: f.right_eye ? mapPt(f.right_eye) : null,
+  };
 }
 
 function rectFromCenter(cx: number, cy: number, halfW: number, halfH: number) {
@@ -94,9 +138,45 @@ export function Loupe() {
   const [fullLoaded, setFullLoaded] = useState(false);
   const fullPreloaderRef = useRef<HTMLImageElement>(null);
   const containerInnerRef = useRef<HTMLDivElement>(null);
-  const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null);
 
-  const zoom = useZoomPan(naturalSize);
+  // The saved crop, if any — independent of crop *mode*. Crop mode always
+  // shows the full frame (so CropOverlay can re-edit the saved rect against
+  // it), so what's actually displayed is `effectiveCrop`, not this directly.
+  const cropRect: CropRect | null =
+    image?.crop_left != null &&
+    image.crop_top != null &&
+    image.crop_right != null &&
+    image.crop_bottom != null
+      ? {
+          left: image.crop_left,
+          top: image.crop_top,
+          right: image.crop_right,
+          bottom: image.crop_bottom,
+        }
+      : null;
+  const effectiveCrop = cropMode ? null : cropRect;
+
+  // The natural size of what's actually displayed — the crop's pixel extent
+  // when one is showing, the whole frame otherwise. Feeding this (rather
+  // than the frame's full naturalSize) into useZoomPan means pan clamping,
+  // 1:1 scale, and eye-zoom all measure against the visible picture instead
+  // of the uncropped frame behind it.
+  const displayNatural = useMemo(() => {
+    if (!naturalSize) return null;
+    if (!effectiveCrop) return naturalSize;
+    const cw = effectiveCrop.right - effectiveCrop.left;
+    const ch = effectiveCrop.bottom - effectiveCrop.top;
+    if (cw <= 0 || ch <= 0) return naturalSize;
+    return { w: cw * naturalSize.w, h: ch * naturalSize.h };
+  }, [
+    naturalSize,
+    effectiveCrop?.left,
+    effectiveCrop?.top,
+    effectiveCrop?.right,
+    effectiveCrop?.bottom,
+  ]);
+
+  const zoom = useZoomPan(displayNatural);
 
   // Reset zoom + full-loaded + crop draft state whenever the selected image changes.
   useEffect(() => {
@@ -104,21 +184,6 @@ export function Loupe() {
     setNaturalSize(null);
     setFullLoaded(false);
   }, [image?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Track the display area's pixel size so a committed crop can be scaled to
-  // fill it (see cropBox below).
-  useLayoutEffect(() => {
-    const el = containerInnerRef.current;
-    if (!el) return;
-    const recompute = () => {
-      const r = el.getBoundingClientRect();
-      setContainerSize({ w: r.width, h: r.height });
-    };
-    recompute();
-    const ro = new ResizeObserver(recompute);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   // Space toggles fit / 1:1 — disabled in crop mode.
   useEffect(() => {
@@ -167,7 +232,8 @@ export function Loupe() {
 
   // Auto-snap the loupe to the subject's eyes once the frame's pixels are ready
   // (naturalSize), and again when the full-res image swaps in (sharpening the
-  // same view). Toggling eyeZoom off returns to fit. Skipped in crop mode and
+  // same view), and whenever a crop is applied/cleared (the target rect has to
+  // be re-mapped). Toggling eyeZoom off returns to fit. Skipped in crop mode and
   // on frames with no detected face. Also suppressed while the face overlay is
   // shown — the overlay is only valid at fit scale, so inspecting faces (F) and
   // pixel-peeping the eyes (E) are deliberately distinct views.
@@ -177,10 +243,36 @@ export function Loupe() {
       zoom.reset();
       return;
     }
-    const target = eyeRectForFaces(facesRef.current);
-    if (target) zoom.zoomToRect(target);
-    else zoom.reset();
-  }, [eyeZoom, showFaces, cropMode, naturalSize]); // eslint-disable-line react-hooks/exhaustive-deps
+    const raw = eyeRectForFaces(facesRef.current);
+    if (!raw) {
+      zoom.reset();
+      return;
+    }
+    if (!cropRect) {
+      zoom.zoomToRect(raw);
+      return;
+    }
+    // The saved crop may have cut the subject's eyes out entirely — in that
+    // case fall back to fit rather than zooming to a rect off the picture.
+    const mapped = mapIntoCrop(raw, cropRect);
+    const cx = mapped ? mapped.x + mapped.w / 2 : -1;
+    const cy = mapped ? mapped.y + mapped.h / 2 : -1;
+    if (mapped && cx >= 0 && cx <= 1 && cy >= 0 && cy <= 1) {
+      zoom.zoomToRect(mapped);
+    } else {
+      zoom.reset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    eyeZoom,
+    showFaces,
+    cropMode,
+    naturalSize,
+    cropRect?.left,
+    cropRect?.top,
+    cropRect?.right,
+    cropRect?.bottom,
+  ]);
 
   // The face overlay shares the crop overlay's image rect, which is only valid
   // in fit view (it's drawn in the untransformed outer container). Hide it while
@@ -188,63 +280,45 @@ export function Loupe() {
   const facesOverlayActive =
     showFaces && !cropMode && faces.length > 0 && zoom.transform.scale <= 1.01;
 
-  // Track the displayed image bounding box for the crop / faces overlays.
+  // Faces re-based into the saved crop's coordinate space, so the overlay
+  // (rendered against the cropped display box) lines up with the visible
+  // picture. Faces the crop cut out entirely are dropped rather than drawn
+  // off-picture.
+  const mappedFaces = useMemo(() => {
+    if (!cropRect) return faces;
+    return faces
+      .map((f) => mapFaceIntoCrop(f, cropRect))
+      .filter((f): f is FaceDetection => f != null);
+  }, [faces, cropRect?.left, cropRect?.top, cropRect?.right, cropRect?.bottom]);
+
+  // Track the displayed image's bounding box (the crop's clipping box, when
+  // one is showing) for the crop / faces overlays. zoom.boxRef is exactly
+  // that box — see useZoomPan — so this stays correct whether or not a crop
+  // is active without needing its own crop-aware geometry.
   useLayoutEffect(() => {
-    if ((!cropMode && !facesOverlayActive) || !zoom.imgRef.current || !containerInnerRef.current) {
+    if ((!cropMode && !facesOverlayActive) || !zoom.boxRef.current || !containerInnerRef.current) {
       setImageBox(null);
       return;
     }
     const recompute = () => {
-      const imgEl = zoom.imgRef.current;
+      const boxEl = zoom.boxRef.current;
       const wrap = containerInnerRef.current;
-      if (!imgEl || !wrap) return;
-      const imgRect = imgEl.getBoundingClientRect();
+      if (!boxEl || !wrap) return;
+      const boxRect = boxEl.getBoundingClientRect();
       const wrapRect = wrap.getBoundingClientRect();
       setImageBox({
-        left: imgRect.left - wrapRect.left,
-        top: imgRect.top - wrapRect.top,
-        width: imgRect.width,
-        height: imgRect.height,
+        left: boxRect.left - wrapRect.left,
+        top: boxRect.top - wrapRect.top,
+        width: boxRect.width,
+        height: boxRect.height,
       });
     };
     recompute();
     const ro = new ResizeObserver(recompute);
-    if (zoom.imgRef.current) ro.observe(zoom.imgRef.current);
+    if (zoom.boxRef.current) ro.observe(zoom.boxRef.current);
     if (containerInnerRef.current) ro.observe(containerInnerRef.current);
     return () => ro.disconnect();
   }, [cropMode, facesOverlayActive, fullLoaded, naturalSize, image?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // When a committed crop exists and we're not editing it, scale + position
-  // the (still full-resolution) <img> so only the cropped region is visible,
-  // filling the available display area — like the CropOverlay's math, but
-  // used to render the actual picture instead of a dimmed preview of it.
-  const cropRect =
-    image?.crop_left != null && image.crop_top != null && image.crop_right != null && image.crop_bottom != null
-      ? { left: image.crop_left, top: image.crop_top, right: image.crop_right, bottom: image.crop_bottom }
-      : null;
-
-  const cropBox = useMemo(() => {
-    if (!cropRect || !naturalSize || !containerSize) return null;
-    const cw = cropRect.right - cropRect.left;
-    const ch = cropRect.bottom - cropRect.top;
-    if (cw <= 0 || ch <= 0 || containerSize.w <= 0 || containerSize.h <= 0) return null;
-    const cropPxW = cw * naturalSize.w;
-    const cropPxH = ch * naturalSize.h;
-    const scale = Math.min(containerSize.w / cropPxW, containerSize.h / cropPxH);
-    const wrapperWidth = cropPxW * scale;
-    const wrapperHeight = cropPxH * scale;
-    const imgWidth = naturalSize.w * scale;
-    const imgHeight = naturalSize.h * scale;
-    return {
-      wrapperWidth,
-      wrapperHeight,
-      imgLeft: -cropRect.left * imgWidth,
-      imgTop: -cropRect.top * imgHeight,
-      imgWidth,
-      imgHeight,
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cropRect?.left, cropRect?.top, cropRect?.right, cropRect?.bottom, naturalSize, containerSize]);
 
   if (!image) {
     return (
@@ -264,8 +338,7 @@ export function Loupe() {
   const useFull = fullLoaded;
   const visibleSrc = useFull ? fullSrc : previewSrc;
 
-  const hasCrop = image.crop_left != null;
-  const showCropped = hasCrop && !cropMode && cropBox != null;
+  const hasCrop = cropRect != null;
   const naturalAspect = naturalSize ? naturalSize.w / naturalSize.h : 3 / 2;
 
   return (
@@ -290,46 +363,16 @@ export function Loupe() {
           }}
         >
           {visibleSrc ? (
-            showCropped && cropBox ? (
-              <div
-                className="relative overflow-hidden"
-                style={{ width: cropBox.wrapperWidth, height: cropBox.wrapperHeight }}
-              >
-                <img
-                  ref={zoom.imgRef}
-                  src={visibleSrc}
-                  alt={image.filename}
-                  draggable={false}
-                  decoding="async"
-                  onLoad={(e) => {
-                    const el = e.currentTarget;
-                    setNaturalSize({ w: el.naturalWidth, h: el.naturalHeight });
-                  }}
-                  style={{
-                    position: "absolute",
-                    left: cropBox.imgLeft,
-                    top: cropBox.imgTop,
-                    width: cropBox.imgWidth,
-                    height: cropBox.imgHeight,
-                    maxWidth: "none",
-                    maxHeight: "none",
-                  }}
-                />
-              </div>
-            ) : (
-              <img
-                ref={zoom.imgRef}
-                src={visibleSrc}
-                alt={image.filename}
-                draggable={false}
-                decoding="async"
-                onLoad={(e) => {
-                  const el = e.currentTarget;
-                  setNaturalSize({ w: el.naturalWidth, h: el.naturalHeight });
-                }}
-                className="max-w-full max-h-full object-contain"
-              />
-            )
+            <CroppedImage
+              src={visibleSrc}
+              alt={image.filename}
+              crop={effectiveCrop}
+              sizeKey={image.id}
+              className="w-full h-full"
+              onNaturalSize={setNaturalSize}
+              boxRef={zoom.boxRef}
+              imgRef={zoom.imgRef}
+            />
           ) : (
             <div className="text-muted">No preview yet</div>
           )}
@@ -352,7 +395,7 @@ export function Loupe() {
         )}
 
         {facesOverlayActive && imageBox && (
-          <FacesOverlay imageBox={imageBox} faces={faces} />
+          <FacesOverlay imageBox={imageBox} faces={mappedFaces} />
         )}
 
         {/* Status chip */}

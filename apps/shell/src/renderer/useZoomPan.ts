@@ -16,6 +16,11 @@ const WHEEL_SENSITIVITY = 0.0018;
 interface UseZoomPanResult {
   containerRef: React.RefObject<HTMLDivElement>;
   imgRef: React.RefObject<HTMLImageElement>;
+  // The box that actually bounds the displayed picture — the crop's clipping
+  // wrapper when a crop is showing, otherwise sized the same as the image
+  // itself. Pan clamping and 1:1 scale measure this, not imgRef, so a
+  // cropped frame can't be panned/zoomed past its own visible edges.
+  boxRef: React.RefObject<HTMLDivElement>;
   transform: Transform;
   reset: () => void;
   toggleOneToOne: () => void;
@@ -38,15 +43,18 @@ interface UseZoomPanResult {
 export function useZoomPan(naturalSize: { w: number; h: number } | null): UseZoomPanResult {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   const [transform, setTransform] = useState<Transform>(FIT);
   const dragRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null);
 
   // The fit scale gives the displayed image its container-fit size. 1:1 needs
   // the ratio of (natural image px / displayed fit px) so 1 image px === 1
   // device px. Compute lazily; falls back to a fixed 4x if we have no sizes.
+  // naturalSize here is the *displayed* size — the crop's pixel dimensions
+  // when cropped, the whole frame's otherwise (see Loupe's displayNatural).
   const oneToOneScale = useCallback((): number => {
-    if (!naturalSize || !imgRef.current) return 4;
-    const displayed = imgRef.current.getBoundingClientRect();
+    if (!naturalSize || !boxRef.current) return 4;
+    const displayed = boxRef.current.getBoundingClientRect();
     if (displayed.width === 0) return 4;
     const dpr = window.devicePixelRatio || 1;
     const ratio = (naturalSize.w / displayed.width) / dpr;
@@ -55,8 +63,8 @@ export function useZoomPan(naturalSize: { w: number; h: number } | null): UseZoo
 
   const clamp = useCallback((next: Transform): Transform => {
     const c = containerRef.current;
-    if (!c || !imgRef.current) return next;
-    const img = imgRef.current.getBoundingClientRect();
+    if (!c || !boxRef.current) return next;
+    const img = boxRef.current.getBoundingClientRect();
     // The image is centred at scale 1; when zoomed we don't let it slip past
     // the container edges by more than the image extent.
     const scaledW = img.width * next.scale;
@@ -80,10 +88,12 @@ export function useZoomPan(naturalSize: { w: number; h: number } | null): UseZoo
     });
   }, [clamp, oneToOneScale]);
 
-  // Zoom + center on a sub-rectangle of the image, given in normalized 0..1
-  // coords of the displayed (fit) image. Used by the eye loupe to snap to the
-  // subject's eyes. Scale is capped at 1:1 (100%) so we never upscale past the
-  // native pixels — the whole point is to judge real sharpness.
+  // Zoom + center on a sub-rectangle of the displayed image, given in
+  // normalized 0..1 coords of it — the crop, when one is showing, not the
+  // full frame (naturalSize is the *displayed* pixel size; see Loupe's
+  // displayNatural and mapIntoCrop). Used by the eye loupe to snap to the
+  // subject's eyes. Scale is capped at 1:1 (100%) so we never upscale past
+  // the native pixels — the whole point is to judge real sharpness.
   const zoomToRect = useCallback(
     (rect: { x: number; y: number; w: number; h: number }, opts?: { pad?: number }) => {
       const c = containerRef.current;
@@ -190,6 +200,7 @@ export function useZoomPan(naturalSize: { w: number; h: number } | null): UseZoo
   return {
     containerRef,
     imgRef,
+    boxRef,
     transform,
     reset,
     toggleOneToOne,
