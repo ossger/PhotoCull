@@ -98,10 +98,10 @@ function registerIpc(): void {
     workerFetch("/scenes/regroup", { method: "POST" }),
   );
 
-  ipcMain.handle("exportXmp", async (_e, onlyPicked: boolean) =>
+  ipcMain.handle("exportXmp", async (_e, onlyPicked: boolean, imageIds?: number[]) =>
     workerFetch("/export/xmp", {
       method: "POST",
-      body: JSON.stringify({ only_picked: onlyPicked }),
+      body: JSON.stringify({ only_picked: onlyPicked, image_ids: imageIds ?? null }),
     }),
   );
 

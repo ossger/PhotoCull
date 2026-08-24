@@ -1,6 +1,6 @@
 {
   "name": "@photocull/shell",
-  "version": "0.0.1",
+  "version": "0.2.0",
   "private": true,
   "description": "Electron + React shell for PhotoCull",
   "main": "dist-electron/main.js",
@@ -37,6 +37,9 @@
     "electronVersion": "30.5.1",
     "appId": "com.photocull.app",
     "productName": "PhotoCull",
+    "directories": {
+      "output": "release"
+    },
     "files": [
       "dist/**",
       "dist-electron/**"
@@ -53,6 +56,7 @@
       "category": "public.app-category.photography",
       "identity": null
     },
+    "afterSign": "../../packaging/afterSign.js",
     "win": { "target": "nsis" }
   }
 }

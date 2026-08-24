@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "photocull-worker"
-version = "0.0.1"
+version = "0.2.0"
 description = "Python sidecar for the PhotoCull desktop app — RAW decode, EXIF, scene detection, AI scoring, XMP export."
 requires-python = ">=3.11"
 dependencies = [
@@ -47,3 +47,10 @@ include = ["photocull*"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.pytest.ini_options]
+# Without this, a bare `pytest` also collects from dist-bin/ and build/ (the
+# PyInstaller freeze outputs of packaging/build-worker.*, gitignored but very
+# commonly present locally) — mediapipe vendors its own test suite, which
+# fails to import outside a frozen bundle and aborts collection entirely.
+testpaths = ["tests"]

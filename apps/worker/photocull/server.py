@@ -207,11 +207,16 @@ def regroup_scenes() -> dict[str, int]:
 
 class ExportBody(BaseModel):
     only_picked: bool = True
+    # The renderer's current advanced-filter matches, when exporting those
+    # rather than picks. Plain default (not Query(...)) — routes here are
+    # also called directly as plain Python in tests, where FastAPI query/body
+    # defaults don't apply.
+    image_ids: list[int] | None = None
 
 
 @app.post("/export/xmp", dependencies=[Depends(require_token)])
 def export_xmp(body: ExportBody) -> dict[str, Any]:
-    return _require_shoot().export_xmp(only_picked=body.only_picked)
+    return _require_shoot().export_xmp(only_picked=body.only_picked, image_ids=body.image_ids)
 
 
 # ----- card import / organize (independent of an open shoot) -----

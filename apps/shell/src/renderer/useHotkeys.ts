@@ -14,7 +14,10 @@ import { useStore } from "./store";
 //     C           toggle compare mode (seeded from the selection)
 //     F           toggle face / eye detection overlay
 //     E           toggle auto eye-zoom loupe (snap to subject's eyes)
-//     L           toggle "picks only" filter
+//     L           toggle a quick "picks only" filter
+//     Shift+L     clear all advanced filters
+//     /           toggle the advanced filter panel
+//     M           toggle Scenes / Matches (flattened, filtered shoot-wide list)
 //     R           enter crop mode
 //     Shift+R     clear any saved crop
 //     Esc         crop mode > compare mode > clear multi-selection, in that order
@@ -32,7 +35,10 @@ export function useHotkeys() {
   const exitCompare = useStore((s) => s.exitCompare);
   const toggleFaces = useStore((s) => s.toggleFaces);
   const toggleEyeZoom = useStore((s) => s.toggleEyeZoom);
-  const togglePicksOnly = useStore((s) => s.togglePicksOnly);
+  const setFilters = useStore((s) => s.setFilters);
+  const clearFilters = useStore((s) => s.clearFilters);
+  const toggleFilterPanel = useStore((s) => s.toggleFilterPanel);
+  const setViewScope = useStore((s) => s.setViewScope);
   const setPickMany = useStore((s) => s.setPickMany);
   const setStarsMany = useStore((s) => s.setStarsMany);
   const enterCropMode = useStore((s) => s.enterCropMode);
@@ -120,7 +126,23 @@ export function useHotkeys() {
           break;
         case "l":
         case "L":
-          togglePicksOnly();
+          if (e.shiftKey) {
+            clearFilters();
+          } else {
+            // Quick toggle: picked-only, layered onto whatever else is set.
+            const isPicksOnly =
+              state.filters.picks.length === 1 && state.filters.picks[0] === "picked";
+            setFilters({ ...state.filters, picks: isPicksOnly ? [] : ["picked"] });
+          }
+          e.preventDefault();
+          break;
+        case "/":
+          toggleFilterPanel();
+          e.preventDefault();
+          break;
+        case "m":
+        case "M":
+          setViewScope(state.viewScope === "matches" ? "scenes" : "matches");
           e.preventDefault();
           break;
         case "r":
@@ -175,7 +197,10 @@ export function useHotkeys() {
     exitCompare,
     toggleFaces,
     toggleEyeZoom,
-    togglePicksOnly,
+    setFilters,
+    clearFilters,
+    toggleFilterPanel,
+    setViewScope,
     setPickMany,
     setStarsMany,
     enterCropMode,

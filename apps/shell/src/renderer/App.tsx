@@ -58,7 +58,8 @@ function HotkeyHint() {
           <Key>P</Key> pick · <Key>X</Key> reject · <Key>U</Key> unset ·{" "}
           <Key>0-5</Key> stars · <Key>G</Key> grid · <Key>C</Key> compare ·{" "}
           <Key>R</Key> crop · <Key>E</Key> eye-zoom ·{" "}
-          <Key>Space</Key>/dbl-click 1:1
+          <Key>Space</Key>/dbl-click 1:1 · <Key>/</Key> filters ·{" "}
+          <Key>M</Key> matches
         </>
       )}
     </div>

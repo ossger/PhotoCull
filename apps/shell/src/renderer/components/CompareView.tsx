@@ -1,9 +1,20 @@
 import { useStore } from "../store";
-import type { ImageRow } from "@shared/types";
+import type { CropRect, ImageRow } from "@shared/types";
+import { CroppedImage } from "./CroppedImage";
 
 interface CellProps {
   image: ImageRow;
   onPick: () => void;
+}
+
+// Same "all four fields or none" read as Loupe's cropRect.
+function cropRectOf(image: ImageRow): CropRect | null {
+  return image.crop_left != null &&
+    image.crop_top != null &&
+    image.crop_right != null &&
+    image.crop_bottom != null
+    ? { left: image.crop_left, top: image.crop_top, right: image.crop_right, bottom: image.crop_bottom }
+    : null;
 }
 
 function Cell({ image, onPick }: CellProps) {
@@ -18,11 +29,12 @@ function Cell({ image, onPick }: CellProps) {
       title={`Click to select ${image.filename}`}
     >
       {src ? (
-        <img
+        <CroppedImage
           src={src}
           alt={image.filename}
-          className="max-w-full max-h-full object-contain"
-          draggable={false}
+          crop={cropRectOf(image)}
+          sizeKey={image.id}
+          className="w-full h-full"
         />
       ) : (
         <div className="text-muted">No preview</div>

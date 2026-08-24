@@ -35,6 +35,7 @@ release/
 *.AppImage
 *.snap
 dist-bin/
+apps/worker/vendor/
 
 # Editor / OS
 .vscode/

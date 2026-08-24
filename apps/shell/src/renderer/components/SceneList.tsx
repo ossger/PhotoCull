@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useStore, visibleScenes } from "../store";
+import { useStore, visibleScenes, sceneMatchCounts } from "../store";
 import type { SceneRow } from "@shared/types";
 
 function fmtTime(iso: string | null): string {
@@ -12,9 +12,23 @@ function fmtTime(iso: string | null): string {
   }
 }
 
-function SceneCard({ scene, selected }: { scene: SceneRow; selected: boolean }) {
+function SceneCard({
+  scene,
+  selected,
+  matching,
+}: {
+  scene: SceneRow;
+  selected: boolean;
+  matching: number;
+}) {
   const selectScene = useStore((s) => s.selectScene);
   const src = scene.cover_thumb ? window.photocull.thumbUrl(scene.cover_thumb) : "";
+  // A filter can narrow what's visible within a scene — show "matching / total"
+  // whenever that's happened, plain "N frames" otherwise.
+  const countLabel =
+    matching === scene.image_count
+      ? `${scene.image_count} ${scene.image_count === 1 ? "frame" : "frames"}`
+      : `${matching} / ${scene.image_count} frames`;
   return (
     <button
       type="button"
@@ -31,7 +45,7 @@ function SceneCard({ scene, selected }: { scene: SceneRow; selected: boolean }) 
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium truncate">{scene.label ?? `Scene ${scene.id}`}</div>
         <div className="text-xs text-muted">
-          {scene.image_count} {scene.image_count === 1 ? "frame" : "frames"}
+          {countLabel}
           {scene.starts_at ? ` · ${fmtTime(scene.starts_at)}` : ""}
         </div>
         {scene.avg_score != null && (
@@ -46,6 +60,7 @@ function SceneCard({ scene, selected }: { scene: SceneRow; selected: boolean }) 
 
 export function SceneList() {
   const scenes = useStore(visibleScenes);
+  const matchCounts = useStore(sceneMatchCounts);
   const selectedSceneId = useStore((s) => s.selectedSceneId);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -68,7 +83,12 @@ export function SceneList() {
   return (
     <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto px-2 py-2 space-y-1">
       {scenes.map((s) => (
-        <SceneCard key={s.id} scene={s} selected={s.id === selectedSceneId} />
+        <SceneCard
+          key={s.id}
+          scene={s}
+          selected={s.id === selectedSceneId}
+          matching={matchCounts.get(s.id) ?? s.image_count}
+        />
       ))}
     </div>
   );

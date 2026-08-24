@@ -47,7 +47,7 @@ contextBridge.exposeInMainWorld("photocull", {
   listImages: () => invoke("listImages"),
   listScenes: () => invoke("listScenes"),
   regroupScenes: () => invoke("regroupScenes"),
-  exportXmp: (onlyPicked: boolean) => invoke("exportXmp", onlyPicked),
+  exportXmp: (onlyPicked: boolean, imageIds?: number[]) => invoke("exportXmp", onlyPicked, imageIds),
   organizePlan: (source: string, library: string, label: string | null) =>
     invoke("organizePlan", source, library, label),
   organizeRun: (source: string, library: string, label: string | null) =>
