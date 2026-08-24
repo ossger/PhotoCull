@@ -133,5 +133,10 @@ Binding rules: `C:\projects\SECURITY.md` (data tiers + checkpoints).
 - **This repo has a GitHub remote** — one of only two that do. Everything committed
   must be **T0 (public-safe)**: no personal photos, no library paths, no API keys.
   `_RawIngest/` and `PhotoLibrary/` are git-ignored and must stay that way.
+- **Builds are now shipped publicly** (`README.md` "Releases"): a tagged version here
+  becomes a GitHub Release asset on `ossger/photocull-releases`, linked from
+  `photocull.infrarg.com` (a separate project — read-only against this repo's docs,
+  never writes here). Bump the version in all four places and add a `CHANGELOG.md`
+  entry before tagging; never rebuild a version number in place once it's tagged.
 - When the Phase 4 cloud-vision option gets its key-storage story, keys are **T4** —
   never a committed file, never a default-on dependency.

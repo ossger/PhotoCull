@@ -1,6 +1,6 @@
 {
   "name": "@photocull/shell",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Electron + React shell for PhotoCull",
   "main": "dist-electron/main.js",
@@ -54,9 +54,13 @@
     "mac": {
       "target": "dmg",
       "category": "public.app-category.photography",
-      "identity": null
+      "identity": null,
+      "artifactName": "${productName}-${version}-macOS-${arch}.${ext}"
     },
     "afterSign": "../../packaging/afterSign.js",
-    "win": { "target": "nsis" }
+    "win": {
+      "target": "nsis",
+      "artifactName": "${productName}-${version}-Windows-${arch}.${ext}"
+    }
   }
 }

@@ -51,6 +51,18 @@ sorting and camera AF metadata work. (On Windows a portable copy is downloaded
 automatically on first use.) The face/RAW model files also download on first
 run, so the first launch needs an internet connection.
 
+## Releases
+
+Public installers are built here, tagged (`git tag vX.Y.Z`), and published as
+assets on the separate `ossger/photocull-releases` repo — this repo stays private
+and source-free downloads never live here. The public download page and install
+instructions are at `photocull.infrarg.com`, sourced from that project.
+
+Before tagging a public release, bump the version in all four places together
+(`package.json`, `apps/shell/package.json`, `apps/worker/pyproject.toml`,
+`apps/worker/photocull/__init__.py`) and add a `CHANGELOG.md` entry — never reuse
+a version number for different bytes once it's been published.
+
 ## Project layout
 
 ```
