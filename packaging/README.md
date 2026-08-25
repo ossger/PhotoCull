@@ -74,20 +74,36 @@ The installer/dmg lands in `apps/shell/release/`.
 ## macOS: Gatekeeper
 
 The mac build is **ad-hoc signed**, not signed with a Developer ID — real code
-signing + notarization needs a paid Apple Developer ID, out of scope for a
-personal build. `packaging/afterSign.js` runs after electron-builder assembles
-the app and applies a real signature (`codesign --sign -`) over the whole
-bundle; without this step the app has no signature at all over its assembled
-contents, and macOS shows an unfixable "app is damaged" dialog for a
-quarantined download rather than the normal bypassable one. Ad-hoc signing
-gets you the normal one: a friend downloading the dmg needs to clear the
-quarantine flag once —
+signing + notarization needs a paid Apple Developer ID. (Ross enrolled in the
+Apple Developer Program 2026-08-25; a Developer ID + notarization pipeline is
+in progress, see the Photography pulse note — once that ships this whole
+section goes away.) `packaging/afterSign.js` runs after electron-builder
+assembles the app and applies a real signature (`codesign --sign -`) over the
+whole bundle; without this step the app has no signature at all over its
+assembled contents, and macOS shows an unfixable "app is damaged" dialog for a
+quarantined download rather than the normal bypassable one.
+
+Ad-hoc signing gets you the normal one, but "normal" changed on **macOS 15
+Sequoia and later: the right-click → Open bypass no longer exists.** A
+quarantined, ad-hoc-signed app now shows *"Apple could not verify ... is free
+of malware"* with only **Move to Trash** and **Done** — no Open button at all.
+The working path on Sequoia+ is:
+
+1. Double-click the app. It will refuse to open — click **Done** (not Move to
+   Trash).
+2. Open **System Settings → Privacy & Security**, scroll to the **Security**
+   section. You'll see *"PhotoCull.app was blocked..."* — click **Open
+   Anyway**, then confirm with Touch ID/password.
+3. **The "Open Anyway" button only appears for a limited time** (roughly an
+   hour) after step 1. If it's not there, double-click the app again first,
+   then go straight to System Settings.
+
+Last resort, if that still doesn't work:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/PhotoCull.app"
 ```
 
-— or right-click the app → Open the first time and confirm the dialog.
 Verify signing worked with `codesign -dv --verbose=4` (expect
 `Identifier=com.photocull.app`, not `Identifier=Electron`, and
 `Sealed Resources` populated, not `none`).
