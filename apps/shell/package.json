@@ -1,6 +1,6 @@
 {
   "name": "@photocull/shell",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Electron + React shell for PhotoCull",
   "main": "dist-electron/main.js",
@@ -63,6 +63,7 @@
     },
     "afterPack": "../../packaging/sign-worker.js",
     "afterSign": "../../packaging/notarize.js",
+    "afterAllArtifactBuild": "../../packaging/notarize-dmg.js",
     "win": {
       "target": "nsis",
       "artifactName": "${productName}-${version}-Windows-${arch}.${ext}"

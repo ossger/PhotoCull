@@ -109,12 +109,18 @@ export APPLE_APP_SPECIFIC_PASSWORD="$(security find-generic-password -s photocul
 ```
 
 Then build exactly as in "Build steps" above (`./packaging/build-worker.sh &&
-npm run dist`) — no separate command. Three hooks now run automatically:
+npm run dist`) — no separate command. Four hooks now run automatically:
 
 1. **`packaging/sign-worker.js`** (`afterPack`) — signs every Mach-O in the
    PyInstaller worker (`Contents/Resources/worker/`) inside-out with the
    Developer ID identity, since electron-builder's own signing walk doesn't
-   reach `extraResources` content.
+   reach `extraResources` content. Framework bundles (PyInstaller's own frozen
+   `Python.framework`) sign as a bundle at their top-level `.framework` path,
+   not as the bare Mach-O inside — signing the inner binary alone leaves
+   `Info.plist`/`Resources` unsealed, which both `codesign --verify --deep
+   --strict` and Apple's notary service reject. Verifies every signature it
+   produces before returning, so a gap in the walk fails the build instead of
+   surfacing later in a notary rejection log.
 2. **electron-builder's own mac signing step** — signs the outer `.app` with
    the same identity, `hardenedRuntime: true`, and the entitlements in
    `packaging/entitlements.mac.plist` / `.inherit.plist` (see those files for
@@ -125,6 +131,13 @@ npm run dist`) — no separate command. Three hooks now run automatically:
    `apps/shell/package.json` — this hook owns notarization directly rather
    than relying on electron-builder's built-in config, whose shape is
    version-sensitive and moved between electron-builder releases.)
+4. **`packaging/notarize-dmg.js`** (`afterAllArtifactBuild`) — the `.app`
+   notarized in step 3 is what runs once installed, but electron-builder
+   builds the `.dmg` from it *after* that step, so the disk image itself —
+   what a user actually downloads and double-clicks — is signed but never
+   submitted to Apple on its own. This hook submits each built `.dmg` via
+   `notarytool submit --wait` and staples the ticket directly to the disk
+   image. Same env-var contract and skip-with-a-warning fallback as step 3.
 
 **First attempt will likely reject** — several hundred nested binaries make it
 easy to miss one. Read the rejection with:

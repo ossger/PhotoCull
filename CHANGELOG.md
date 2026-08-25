@@ -2,6 +2,14 @@
 
 All notable changes to PhotoCull. Versions correspond to git tags (`v0.3.0`, …).
 
+## 0.3.1 — 2026-08-25
+
+No app changes — same feature set as 0.3.0. The macOS build is now signed with
+a Developer ID Application certificate and notarized by Apple, replacing the
+ad-hoc signature 0.3.0 shipped with. macOS 15 Sequoia removed the right-click →
+Open bypass ad-hoc signing depended on, so a plain double-click is again enough
+to open a freshly downloaded `.dmg` — no System Settings detour required.
+
 ## 0.3.0 — 2026-08-24
 
 First publicly released version — same feature set as 0.2.0, bumped for a clean,

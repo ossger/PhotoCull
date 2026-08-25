@@ -1,0 +1,52 @@
+// electron-builder afterAllArtifactBuild hook.
+//
+// packaging/notarize.js (afterSign) notarizes and staples the .app -- which
+// is what ends up installed and running -- but electron-builder builds the
+// .dmg from that already-signed .app *after* afterSign runs, so the dmg
+// itself is signed (electron-builder signs the disk image with the same
+// identity) but never submitted to Apple. The dmg is what actually gets
+// downloaded and double-clicked, and Gatekeeper can still block opening an
+// unnotarized disk image even though the app inside is notarized -- Apple's
+// own guidance is to notarize the artifact you actually distribute. This
+// hook does that: after all artifacts are built, submit each .dmg and staple
+// the ticket to it directly (dmg tickets staple to the image itself, no
+// re-mount needed).
+//
+// Same env-var contract as notarize.js (APPLE_ID / APPLE_TEAM_ID /
+// APPLE_APP_SPECIFIC_PASSWORD) and the same skip-with-a-warning behavior when
+// they're absent, so a cert-less dev build is untouched.
+const { execFileSync } = require("node:child_process");
+
+module.exports = async function afterAllArtifactBuild(buildResult) {
+  const dmgPaths = (buildResult.artifactPaths || []).filter((p) => p.endsWith(".dmg"));
+  if (dmgPaths.length === 0) return;
+
+  const { APPLE_ID, APPLE_TEAM_ID, APPLE_APP_SPECIFIC_PASSWORD } = process.env;
+  if (!APPLE_ID || !APPLE_TEAM_ID || !APPLE_APP_SPECIFIC_PASSWORD) {
+    console.warn(
+      "[notarize-dmg] APPLE_ID / APPLE_TEAM_ID / APPLE_APP_SPECIFIC_PASSWORD not set " +
+        "-- skipping dmg notarization (ad-hoc-signed build only, see packaging/README.md).",
+    );
+    return;
+  }
+
+  for (const dmgPath of dmgPaths) {
+    console.log(`[notarize-dmg] submitting ${dmgPath} to Apple (this can take several minutes)`);
+    execFileSync(
+      "xcrun",
+      [
+        "notarytool", "submit", dmgPath,
+        "--apple-id", APPLE_ID,
+        "--team-id", APPLE_TEAM_ID,
+        "--password", APPLE_APP_SPECIFIC_PASSWORD,
+        "--wait",
+      ],
+      { stdio: "inherit" },
+    );
+
+    console.log(`[notarize-dmg] accepted -- stapling ${dmgPath}`);
+    execFileSync("xcrun", ["stapler", "staple", dmgPath], { stdio: "inherit" });
+  }
+
+  console.log(`[notarize-dmg] done (${dmgPaths.length} dmg(s))`);
+};
