@@ -54,10 +54,15 @@
     "mac": {
       "target": "dmg",
       "category": "public.app-category.photography",
-      "identity": null,
-      "artifactName": "${productName}-${version}-macOS-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-macOS-${arch}.${ext}",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "notarize": false,
+      "entitlements": "../../packaging/entitlements.mac.plist",
+      "entitlementsInherit": "../../packaging/entitlements.mac.inherit.plist"
     },
-    "afterSign": "../../packaging/afterSign.js",
+    "afterPack": "../../packaging/sign-worker.js",
+    "afterSign": "../../packaging/notarize.js",
     "win": {
       "target": "nsis",
       "artifactName": "${productName}-${version}-Windows-${arch}.${ext}"

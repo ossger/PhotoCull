@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- V8 JIT: required for Electron under hardened runtime. -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <!-- Electron/V8 still needs this under hardened runtime. -->
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <!-- The PyInstaller worker loads several hundred .so/.dylib files
+       (mediapipe, onnxruntime, rawpy/libraw, opencv, numpy). -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+  <!-- The PyInstaller one-folder bootloader leans on DYLD_LIBRARY_PATH;
+       hardened runtime strips DYLD_* env vars without this. -->
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+  <true/>
+</dict>
+</plist>

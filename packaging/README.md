@@ -2,12 +2,15 @@
 
 Producing a double-clickable app (Windows `.exe` installer / macOS `.dmg`).
 
-> **Status: validated end-to-end on both Windows and macOS** (mac: signed
-> bundle launches from `/Applications`, sidecar boots, exiftool resolves, all
-> after clearing quarantine — see the Gatekeeper section below). `npm run dev`
-> is still the supported way to run PhotoCull day to day. **Build on the
-> target OS** — electron-builder does not cross-compile the native Python
-> sidecar, so build the macOS app on a Mac and the Windows app on Windows.
+> **Status: validated end-to-end on Windows; macOS validated through `v0.3.0`
+> (ad-hoc signing), pipeline changed 2026-08-25 for Developer ID + notarization
+> and not yet re-run on a Mac** — see "macOS: Developer ID signing +
+> notarization" below; the ad-hoc fallback it also implements (for a Mac
+> without the cert) is a straight port of the old behaviour but likewise
+> unverified since the change. `npm run dev` is still the supported way to run
+> PhotoCull day to day. **Build on the target OS** — electron-builder does not
+> cross-compile the native Python sidecar, so build the macOS app on a Mac and
+> the Windows app on Windows.
 >
 > Bugs found and fixed while validating on Windows (all apply equally to a mac
 > build, since they're in shared config, not OS-specific code):
@@ -37,9 +40,11 @@ Producing a double-clickable app (Windows `.exe` installer / macOS `.dmg`).
 >   Fixed by setting `directories.output: "release"`.
 > - `mac.identity: "-"` does **not** mean "ad-hoc sign" to electron-builder
 >   24.13.3 — it searches the keychain for a literal identity named `-`, finds
->   none, and silently skips signing. `identity: null` plus a `packaging/afterSign.js`
->   hook (documented inline) that ad-hoc signs the assembled bundle after
->   packaging is what actually produces a signed, sealed `.app`.
+>   none, and silently skips signing. (Historical note: `identity: null` plus a
+>   manual ad-hoc-signing hook was the original fix here. As of 2026-08-25 that's
+>   been superseded by real Developer ID signing — see "macOS: Developer ID
+>   signing + notarization" below — but the same ad-hoc fallback still runs
+>   automatically on a Mac without the paid cert installed.)
 > - exiftool was not bundled at all; macOS has no auto-download path (unlike
 >   Windows), so XMP export hard-failed for anyone without Homebrew. Fixed —
 >   see the exiftool section below.
@@ -71,17 +76,98 @@ npm run dist
 
 The installer/dmg lands in `apps/shell/release/`.
 
+## macOS: Developer ID signing + notarization
+
+**Status (2026-08-25): staged, not yet run.** Ross enrolled in the Apple
+Developer Program and is awaiting approval. Everything below is ready to go —
+the pipeline runs automatically as part of `npm run dist` once the
+prerequisites exist on the build Mac. Until then (or on any Mac without the
+cert), builds silently fall back to the ad-hoc-signed posture described in
+"macOS: Gatekeeper" below — nothing breaks in the meantime.
+
+**Prerequisites, once Apple approves (one-time, on the Mac):**
+
+1. Install a **Developer ID Application** certificate into the login keychain:
+   Xcode → Settings → Accounts → Manage Certificates → **+ → Developer ID
+   Application** (or create it in the developer portal and download it).
+2. Note the **Team ID** (developer portal → Membership).
+3. Create an **app-specific password** at account.apple.com → Sign-In and
+   Security → App-Specific Passwords, and store it in the keychain rather than
+   typing it each time:
+   ```bash
+   security add-generic-password -s photocull-notary -a "<your-apple-id>" -w
+   ```
+
+**Before building**, export the three credentials `packaging/notarize.js`
+reads (pulling the password back out of the keychain item above, never typed
+or committed in plaintext):
+
+```bash
+export APPLE_ID="<your-apple-id>"
+export APPLE_TEAM_ID="<team-id>"
+export APPLE_APP_SPECIFIC_PASSWORD="$(security find-generic-password -s photocull-notary -a "$APPLE_ID" -w)"
+```
+
+Then build exactly as in "Build steps" above (`./packaging/build-worker.sh &&
+npm run dist`) — no separate command. Three hooks now run automatically:
+
+1. **`packaging/sign-worker.js`** (`afterPack`) — signs every Mach-O in the
+   PyInstaller worker (`Contents/Resources/worker/`) inside-out with the
+   Developer ID identity, since electron-builder's own signing walk doesn't
+   reach `extraResources` content.
+2. **electron-builder's own mac signing step** — signs the outer `.app` with
+   the same identity, `hardenedRuntime: true`, and the entitlements in
+   `packaging/entitlements.mac.plist` / `.inherit.plist` (see those files for
+   what's granted and why — kept minimal).
+3. **`packaging/notarize.js`** (`afterSign`) — zips the signed `.app`, submits
+   it to Apple via `xcrun notarytool submit --wait`, and staples the ticket to
+   the `.app` once accepted. (`mac.notarize` is explicitly `false` in
+   `apps/shell/package.json` — this hook owns notarization directly rather
+   than relying on electron-builder's built-in config, whose shape is
+   version-sensitive and moved between electron-builder releases.)
+
+**First attempt will likely reject** — several hundred nested binaries make it
+easy to miss one. Read the rejection with:
+
+```bash
+xcrun notarytool log <submission-id> --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD"
+```
+
+It names the exact unsigned path; the fix is almost always in
+`sign-worker.js`'s walk, not the entitlements.
+
+**Verify the result** (on the built `.app`, and again on the `.dmg`):
+
+```bash
+codesign -dv --verbose=4 PhotoCull.app        # Authority=Developer ID Application: ...
+codesign --verify --deep --strict --verbose=2 PhotoCull.app
+xcrun stapler validate PhotoCull.app
+spctl -a -vvv -t install PhotoCull.app        # accepted, source=Notarized Developer ID
+```
+
+Then the real gate: download the `.dmg` through a browser (so it actually
+carries the quarantine bit), drag to Applications, **double-click**, and
+confirm the app *and* the Python worker sidecar both come up — see
+`vault\Pulse\_manual-steps.md` for why this can't be skipped.
+
+**Version:** `v0.3.0` is already tagged and published — never reuse a version
+number for different bytes. The first notarized build ships as `v0.3.1`, bumped
+in the usual four places (see the root `README.md` "Releases" section) with a
+`CHANGELOG.md` entry, before tagging.
+
 ## macOS: Gatekeeper
 
-The mac build is **ad-hoc signed**, not signed with a Developer ID — real code
-signing + notarization needs a paid Apple Developer ID. (Ross enrolled in the
-Apple Developer Program 2026-08-25; a Developer ID + notarization pipeline is
-in progress, see the Photography pulse note — once that ships this whole
-section goes away.) `packaging/afterSign.js` runs after electron-builder
-assembles the app and applies a real signature (`codesign --sign -`) over the
-whole bundle; without this step the app has no signature at all over its
-assembled contents, and macOS shows an unfixable "app is damaged" dialog for a
-quarantined download rather than the normal bypassable one.
+The mac build shipped through `v0.3.0` is **ad-hoc signed**, not signed with a
+Developer ID. (Ross enrolled in the Apple Developer Program 2026-08-25; a
+Developer ID + notarization pipeline is staged, see "macOS: Developer ID
+signing + notarization" above — once it ships as `v0.3.1` this section stops
+applying.) The ad-hoc signing itself is now the fallback branch of
+`packaging/sign-worker.js` (an `afterPack` hook — it used to be a separate
+`afterSign.js`, retired 2026-08-25): it applies a real signature
+(`codesign --sign -`) over the whole assembled bundle; without that step the
+app has no signature at all over its assembled contents, and macOS shows an
+unfixable "app is damaged" dialog for a quarantined download rather than the
+normal bypassable one.
 
 Ad-hoc signing gets you the normal one, but "normal" changed on **macOS 15
 Sequoia and later: the right-click → Open bypass no longer exists.** A
