@@ -115,12 +115,13 @@ crop rect — these are what XMP export writes out.
 
 Every project under `C:\projects` publishes a one-screen **pulse note** into the
 shared Obsidian vault; every session reads them all. Contract + template:
-`C:\projects\vault\Pulse\README.md`.
+`Pulse/README.md` in the shared vault — `C:\projects\vault\Pulse\` on the
+workstation, `~/Projects/vault/Pulse/` on the Mac satellite.
 
-- **Session start:** read `C:\projects\vault\Pulse\*.md` and carry over whatever
-  is relevant.
-- **Session end (substantive work only):** refresh
-  `C:\projects\vault\Pulse\Photography.md` — status, **where you left off** (this
+- **Session start:** read every file in the vault's `Pulse/` folder and carry
+  over whatever is relevant.
+- **Session end (substantive work only):** refresh `Photography.md` in the
+  vault's `Pulse/` folder — status, **where you left off** (this
   is what others read instead of probing git WIP), next steps, decisions; bump
   `updated:` — then commit **only that file** in the vault repo.
 - **Synced + committed — genericize sensitive detail.**
