@@ -160,7 +160,15 @@ def _get_landmarker():  # type: ignore[no-untyped-def]
         from mediapipe.tasks.python import vision as mp_vision
 
         model_path = models.face_landmarker_model()
-        base_opts = mp_python.BaseOptions(model_asset_path=str(model_path))
+        # Force CPU: MediaPipe's default delegate selection reaches for the Metal
+        # GPU calculator on Apple Silicon, which aborts (SIGABRT, deep inside
+        # absl::log_internal — DrishtiMetalHelper/TensorsToDetectionsCalculator)
+        # in the PyInstaller-frozen worker. CPU is plenty fast for a single-face
+        # crop landmarker pass; not worth chasing the Metal shader bundling issue.
+        base_opts = mp_python.BaseOptions(
+            model_asset_path=str(model_path),
+            delegate=mp_python.BaseOptions.Delegate.CPU,
+        )
         opts = mp_vision.FaceLandmarkerOptions(
             base_options=base_opts,
             num_faces=1,  # runs on a single-face crop now

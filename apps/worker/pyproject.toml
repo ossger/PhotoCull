@@ -22,7 +22,14 @@ dependencies = [
 # Phase 3+ dependencies. Pinned loosely; install when you reach each phase.
 raw = ["rawpy>=0.20"]
 ml = [
-    "mediapipe>=0.10.14",
+    # Upper-bounded: 1.0.0/1.0.1 regressed on macOS/Metal — FaceLandmarker's
+    # internal short-range face detector aborts (SIGABRT, graph_service.h
+    # "Check failed: service_ Service is unavailable") building its GPU
+    # calculator, even with BaseOptions.Delegate.CPU forced on the outer
+    # options. 0.10.14 (this repo's original floor) confirmed clean on
+    # macOS 26.5.2/arm64 — both graph construction and a real detect_rgb()
+    # pass. Re-test before lifting this cap.
+    "mediapipe>=0.10.14,<1.0",
     "onnxruntime>=1.17",
 ]
 api = [
