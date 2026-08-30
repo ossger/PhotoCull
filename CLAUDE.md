@@ -113,7 +113,7 @@ crop rect — these are what XMP export writes out.
 
 ## Project Pulse — cross-project context
 
-Every project under `C:\projects` publishes a one-screen **pulse note** into the
+Every project under `~/Projects` publishes a one-screen **pulse note** into the
 shared Obsidian vault; every session reads them all. Contract + template:
 `Pulse/README.md` in the shared vault — `C:\projects\vault\Pulse\` on the
 workstation, `~/Projects/vault/Pulse/` on the Mac satellite.
@@ -129,7 +129,7 @@ workstation, `~/Projects/vault/Pulse/` on the Mac satellite.
 
 ## Security & data handling
 
-Binding rules: `C:\projects\SECURITY.md` (data tiers + checkpoints).
+Binding rules: `~/Projects/SECURITY.md` (data tiers + checkpoints).
 
 - **This repo has a GitHub remote** — one of only two that do. Everything committed
   must be **T0 (public-safe)**: no personal photos, no library paths, no API keys.
