@@ -13,11 +13,12 @@
 // block) -- see packaging/sign-worker.js for the worker sidecar's signing,
 // which happens earlier (afterPack).
 //
-// Needs APPLE_ID, APPLE_TEAM_ID, APPLE_APP_SPECIFIC_PASSWORD in the
-// environment -- see packaging/README.md "Credentials". Skips entirely, with
-// a warning, when they aren't set, so local/dev builds on a Mac without the
-// paid cert still work (ad-hoc signed, same as before).
+// Credentials come from packaging/notary-auth.js -- a notarytool keychain
+// profile by preference, the APPLE_* env vars as a fallback. Skips entirely,
+// with a warning, when neither is configured, so local/dev builds on a Mac
+// without the paid cert still work (ad-hoc signed, same as before).
 const { execFileSync } = require("node:child_process");
+const { notaryAuthArgs, runNotary, NO_CREDENTIALS_HINT } = require("./notary-auth");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -26,12 +27,9 @@ module.exports = async function afterSign(context) {
   const { appOutDir, packager, electronPlatformName } = context;
   if (electronPlatformName !== "darwin") return;
 
-  const { APPLE_ID, APPLE_TEAM_ID, APPLE_APP_SPECIFIC_PASSWORD } = process.env;
-  if (!APPLE_ID || !APPLE_TEAM_ID || !APPLE_APP_SPECIFIC_PASSWORD) {
-    console.warn(
-      "[notarize] APPLE_ID / APPLE_TEAM_ID / APPLE_APP_SPECIFIC_PASSWORD not set " +
-        "-- skipping notarization (ad-hoc-signed build only, see packaging/README.md).",
-    );
+  const authArgs = notaryAuthArgs();
+  if (!authArgs) {
+    console.warn(`[notarize] ${NO_CREDENTIALS_HINT}`);
     return;
   }
 
@@ -44,17 +42,7 @@ module.exports = async function afterSign(context) {
 
   try {
     console.log("[notarize] submitting to Apple (this can take several minutes)");
-    execFileSync(
-      "xcrun",
-      [
-        "notarytool", "submit", zipPath,
-        "--apple-id", APPLE_ID,
-        "--team-id", APPLE_TEAM_ID,
-        "--password", APPLE_APP_SPECIFIC_PASSWORD,
-        "--wait",
-      ],
-      { stdio: "inherit" },
-    );
+    runNotary(["submit", zipPath, ...authArgs, "--wait"]);
   } finally {
     fs.rmSync(zipPath, { force: true });
   }

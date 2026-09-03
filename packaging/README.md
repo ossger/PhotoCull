@@ -2,15 +2,19 @@
 
 Producing a double-clickable app (Windows `.exe` installer / macOS `.dmg`).
 
-> **Status: validated end-to-end on Windows; macOS validated through `v0.3.0`
-> (ad-hoc signing), pipeline changed 2026-08-25 for Developer ID + notarization
-> and not yet re-run on a Mac** — see "macOS: Developer ID signing +
-> notarization" below; the ad-hoc fallback it also implements (for a Mac
-> without the cert) is a straight port of the old behaviour but likewise
-> unverified since the change. `npm run dev` is still the supported way to run
-> PhotoCull day to day. **Build on the target OS** — electron-builder does not
-> cross-compile the native Python sidecar, so build the macOS app on a Mac and
-> the Windows app on Windows.
+> **Status: validated end-to-end on Windows and on macOS.** macOS arm64 shipped
+> signed + notarized as `v0.3.1` (2026-08-28); macOS **x64 (Intel)** built and
+> verified 2026-09-03 — signed, sidecar boots from inside the bundle, awaiting
+> notarization on a rotated credential (SD-0101). `npm run dev` is still the
+> supported way to run PhotoCull day to day.
+>
+> **Build on the target OS — with one exception.** electron-builder does not
+> cross-compile the native Python sidecar, so the Windows app must be built on
+> Windows. The **Intel macOS** app, however, *is* built on an Apple Silicon Mac,
+> via an x86_64 interpreter under Rosetta — see "macOS: which architecture, and
+> the minimum-OS trap" below. Read that section before building either macOS
+> artifact: it also documents why the published arm64 `v0.3.1` silently
+> requires macOS 26.
 >
 > Bugs found and fixed while validating on Windows (all apply equally to a mac
 > build, since they're in shared config, not OS-specific code):
@@ -76,6 +80,94 @@ npm run dist
 
 The installer/dmg lands in `apps/shell/release/`.
 
+## macOS: which architecture, and the minimum-OS trap
+
+Two separate macOS artifacts ship: `-macOS-arm64` (Apple Silicon) and
+`-macOS-x64` (Intel). Both are built **on the Mac** — Intel does not need an
+Intel machine, but it does need care, because PyInstaller cannot cross-compile.
+
+### Building the Intel (x64) artifact from an Apple Silicon Mac
+
+The Electron half cross-builds fine; the **Python sidecar** is the whole
+problem. It must be frozen by an actual x86_64 interpreter, run under Rosetta.
+
+```bash
+# 1. An x86_64 CPython, kept out of the machine's own toolchain.
+#    python-build-standalone rather than Homebrew -- see "the minimum-OS trap".
+curl -fsSLO https://github.com/astral-sh/python-build-standalone/releases/download/20260901/cpython-3.12.14+20260901-x86_64-apple-darwin-install_only.tar.gz
+tar -xzf cpython-3.12.14+20260901-x86_64-apple-darwin-install_only.tar.gz   # -> ./python
+
+# 2. An x86_64 venv, driven under Rosetta throughout.
+arch -x86_64 ./python/bin/python3.12 -m venv venv-x64
+
+# 3. Dependencies. --only-binary is not optional: several packages have DROPPED
+#    Intel macOS wheels (rawpy 0.26+ has none), and pip's fallback is a source
+#    build that fails under Rosetta with "fatal error: 'fstream' file not
+#    found". Forcing wheels makes pip backtrack to a version that still has one.
+#    The pins are minimum-OS floors, explained below.
+arch -x86_64 venv-x64/bin/python -m pip install \
+    --only-binary=rawpy,mediapipe,onnxruntime,opencv-python-headless,opencv-contrib-python,numpy,pillow,scipy,jaxlib \
+    "mediapipe==0.10.14" "opencv-python-headless==4.9.0.80" "opencv-contrib-python==4.9.0.80" \
+    "onnxruntime<1.20" "scipy<1.14" "numpy<2" "rawpy>=0.20" \
+    fastapi "uvicorn[standard]" pydantic Pillow piexif imagehash pyinstaller
+arch -x86_64 venv-x64/bin/python -m pip install --no-deps -e apps/worker
+
+# 4. Freeze with that venv on PATH, then package for x64.
+arch -x86_64 env PATH="$PWD/venv-x64/bin:$PATH" bash packaging/build-worker.sh
+cd apps/shell && npx electron-builder --mac --x64
+```
+
+> **`npm run dist -- --mac --x64` does not work.** The root `dist` script is
+> `npm --workspace apps/shell run dist`, so npm consumes the extra arguments at
+> the outer invocation and they never reach electron-builder, which then
+> silently builds for the **host** architecture. The failure mode is nasty: an
+> arm64 app wrapped around an x86_64 worker, which only breaks at sidecar
+> spawn. Call `npx electron-builder --mac --x64` directly from `apps/shell`.
+
+Building the two architectures back to back overwrites
+`apps/worker/dist-bin/` — it is a single path with no arch suffix. Freeze,
+package, then re-freeze for the other arch; never assume what is sitting there.
+
+### The minimum-OS trap
+
+**`LSMinimumSystemVersion` in the Info.plist is not the app's real minimum.**
+The real minimum is the **highest `minos` load command across every bundled
+Mach-O**, because dyld refuses to load a binary built for a newer OS than the
+one running. Electron sets the plist to 10.15 and nothing validates it against
+what the sidecar dragged in. A wrong value is invisible on the build machine —
+which is always new enough — and shows up only as a broken sidecar on a user's
+older Mac.
+
+Measure it, don't assume it:
+
+```bash
+# highest minos anywhere in the bundle == the true floor
+find PhotoCull.app -type f -perm +111 -exec sh -c \
+  'otool -l "$1" 2>/dev/null | awk "/minos/{print \$2}"' _ {} \; | sort -V | tail -1
+```
+
+This caught a live bug on **2026-09-03**: `v0.3.1` arm64 — the published
+download — measures **`minos 26.0`**. It was frozen with the Homebrew arm64
+Python, whose dylibs are compiled against the host SDK, so 59 binaries
+(`libmpdec`, `libpython`, …) demand macOS 26. That build effectively runs on
+macOS 26 Tahoe and nothing older. **This is why the Intel recipe above uses
+python-build-standalone**: its interpreter targets `minos 10.15`, leaving the
+floor to the wheels, where it can be managed. Rebuild arm64 the same way.
+
+With the pins above, the Intel floor is **macOS 13.0 Ventura**, set by:
+
+| Package | Floor | Note |
+|---|---|---|
+| `mediapipe` 0.10.14 | **13.0** | the binding constraint; 0.10.13 is identical, 0.10.18+ is 14.6 |
+| `opencv` 4.9.0.80 | 12.0 | 4.11 is 13.0 |
+| `onnxruntime` 1.19.2 | 11.0 | 1.20+ jumps to 13.3 |
+| `scipy` 1.13.1 | ≤12.0 | 1.17 is 14.0 |
+| the interpreter | 10.15 | python-build-standalone |
+
+**Monterey (12.x) is not reachable** while face scoring ships: every cp312
+mediapipe wheel floors at 13.0. Dropping below it means dropping mediapipe, and
+with it eyes-open and face scoring — a product decision, not a packaging one.
+
 ## macOS: Developer ID signing + notarization
 
 **Status (2026-08-25): staged, not yet run.** Ross enrolled in the Apple
@@ -92,24 +184,29 @@ cert), builds silently fall back to the ad-hoc-signed posture described in
    Application** (or create it in the developer portal and download it).
 2. Note the **Team ID** (developer portal → Membership).
 3. Create an **app-specific password** at account.apple.com → Sign-In and
-   Security → App-Specific Passwords, and store it in the keychain rather than
-   typing it each time:
+   Security → App-Specific Passwords, and store it as a **notarytool keychain
+   profile**. The command prompts for the password, so it never touches an
+   argv or a shell history:
    ```bash
-   security add-generic-password -s photocull-notary -a "<your-apple-id>" -w
+   xcrun notarytool store-credentials photocull-notary \
+       --apple-id "<your-apple-id>" --team-id "<team-id>"
    ```
 
-**Before building**, export the three credentials `packaging/notarize.js`
-reads (pulling the password back out of the keychain item above, never typed
-or committed in plaintext):
+**Then just build** — `./packaging/build-worker.sh && npm run dist`. No
+credentials to export: `packaging/notary-auth.js` finds the `photocull-notary`
+profile and both hooks use `--keychain-profile`. Override the profile name with
+`APPLE_NOTARY_KEYCHAIN_PROFILE` if you keep more than one.
 
-```bash
-export APPLE_ID="<your-apple-id>"
-export APPLE_TEAM_ID="<team-id>"
-export APPLE_APP_SPECIFIC_PASSWORD="$(security find-generic-password -s photocull-notary -a "$APPLE_ID" -w)"
-```
+> **Never pass the password as `--password` on a command line.** The
+> `APPLE_ID` / `APPLE_TEAM_ID` / `APPLE_APP_SPECIFIC_PASSWORD` env vars are
+> still honoured as a fallback for CI, where there is no keychain, but on a
+> real machine an argv leaks twice: it is visible in any process listing while
+> the submission runs (this happened 2026-08-28), and Node reprints the entire
+> failing command line — password included — when `notarytool` exits non-zero
+> (this happened 2026-09-03, on an expired credential). `runNotary()` in
+> `notary-auth.js` now scrubs that second path, but the profile avoids both.
 
-Then build exactly as in "Build steps" above (`./packaging/build-worker.sh &&
-npm run dist`) — no separate command. Four hooks now run automatically:
+Four hooks run automatically:
 
 1. **`packaging/sign-worker.js`** (`afterPack`) — signs every Mach-O in the
    PyInstaller worker (`Contents/Resources/worker/`) inside-out with the

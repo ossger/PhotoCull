@@ -12,37 +12,26 @@
 // the ticket to it directly (dmg tickets staple to the image itself, no
 // re-mount needed).
 //
-// Same env-var contract as notarize.js (APPLE_ID / APPLE_TEAM_ID /
-// APPLE_APP_SPECIFIC_PASSWORD) and the same skip-with-a-warning behavior when
-// they're absent, so a cert-less dev build is untouched.
+// Same credential contract as notarize.js (packaging/notary-auth.js: a
+// notarytool keychain profile by preference, the APPLE_* env vars as a
+// fallback) and the same skip-with-a-warning behavior when neither is
+// configured, so a cert-less dev build is untouched.
 const { execFileSync } = require("node:child_process");
+const { notaryAuthArgs, runNotary, NO_CREDENTIALS_HINT } = require("./notary-auth");
 
 module.exports = async function afterAllArtifactBuild(buildResult) {
   const dmgPaths = (buildResult.artifactPaths || []).filter((p) => p.endsWith(".dmg"));
   if (dmgPaths.length === 0) return;
 
-  const { APPLE_ID, APPLE_TEAM_ID, APPLE_APP_SPECIFIC_PASSWORD } = process.env;
-  if (!APPLE_ID || !APPLE_TEAM_ID || !APPLE_APP_SPECIFIC_PASSWORD) {
-    console.warn(
-      "[notarize-dmg] APPLE_ID / APPLE_TEAM_ID / APPLE_APP_SPECIFIC_PASSWORD not set " +
-        "-- skipping dmg notarization (ad-hoc-signed build only, see packaging/README.md).",
-    );
+  const authArgs = notaryAuthArgs();
+  if (!authArgs) {
+    console.warn(`[notarize-dmg] ${NO_CREDENTIALS_HINT}`);
     return;
   }
 
   for (const dmgPath of dmgPaths) {
     console.log(`[notarize-dmg] submitting ${dmgPath} to Apple (this can take several minutes)`);
-    execFileSync(
-      "xcrun",
-      [
-        "notarytool", "submit", dmgPath,
-        "--apple-id", APPLE_ID,
-        "--team-id", APPLE_TEAM_ID,
-        "--password", APPLE_APP_SPECIFIC_PASSWORD,
-        "--wait",
-      ],
-      { stdio: "inherit" },
-    );
+    runNotary(["submit", dmgPath, ...authArgs, "--wait"]);
 
     console.log(`[notarize-dmg] accepted -- stapling ${dmgPath}`);
     execFileSync("xcrun", ["stapler", "staple", dmgPath], { stdio: "inherit" });
