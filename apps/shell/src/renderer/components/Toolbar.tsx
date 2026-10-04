@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useStore } from "../store";
 import { activeCriterionCount, matchesFilters } from "../filters";
 import { OrganizeModal } from "./OrganizeModal";
+import { EventSortModal } from "./EventSortModal";
 import { FilterPanel } from "./FilterPanel";
 
 export function Toolbar() {
@@ -27,6 +28,7 @@ export function Toolbar() {
   const [exporting, setExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [eventSortOpen, setEventSortOpen] = useState(false);
 
   const pickCount = images.filter((i) => i.pick === 1).length;
   const filterCount = activeCriterionCount(filters);
@@ -122,6 +124,14 @@ export function Toolbar() {
           className="flex-shrink-0 whitespace-nowrap px-3 py-1 rounded-md bg-panel2 hover:bg-line text-sm border border-line"
         >
           Import…
+        </button>
+        <button
+          type="button"
+          onClick={() => setEventSortOpen(true)}
+          title="Split a card dump folder into one subfolder per event"
+          className="flex-shrink-0 whitespace-nowrap px-3 py-1 rounded-md bg-panel2 hover:bg-line text-sm border border-line"
+        >
+          Sort into events…
         </button>
         <button
           type="button"
@@ -266,6 +276,7 @@ export function Toolbar() {
       <div className="text-sm text-right truncate max-w-[16rem] flex-shrink-0">{status}</div>
     </div>
     {importOpen && <OrganizeModal onClose={() => setImportOpen(false)} />}
+    {eventSortOpen && <EventSortModal onClose={() => setEventSortOpen(false)} />}
     {filterPanelOpen && <FilterPanel />}
     </>
   );

@@ -85,6 +85,10 @@ interface Store {
   error: string | null;
 
   openFolder: () => Promise<void>;
+  // Open a known folder as the shoot (no picker) — e.g. a freshly sorted event.
+  openPath: (folder: string) => Promise<void>;
+  // Drop the open shoot from the UI after the worker closed it (event sort moved its files).
+  forgetShoot: () => void;
   refresh: () => Promise<void>;
   pollProgress: () => Promise<void>;
 
@@ -273,7 +277,27 @@ export const useStore = create<Store>((set, get) => ({
     set({ error: null });
     const folder = await window.photocull.pickFolder();
     if (!folder) return;
+    await get().openPath(folder);
+  },
+
+  forgetShoot() {
     set({
+      shootRoot: null,
+      images: [],
+      scenes: [],
+      selectedSceneId: null,
+      selectedImageId: null,
+      selectedIds: [],
+      rangeAnchorId: null,
+      compareIds: [],
+      compareMode: false,
+      progress: { state: "idle", done: 0, total: 0, current: null },
+    });
+  },
+
+  async openPath(folder: string) {
+    set({
+      error: null,
       loading: true,
       images: [],
       scenes: [],

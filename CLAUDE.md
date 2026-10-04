@@ -46,9 +46,11 @@ Two paths reach the worker from the renderer:
    `preload.ts` via `contextBridge`, an **allow-list**), which is
    `ipcRenderer.invoke` → handled in main → worker. API today: `pickFolder`,
    `openShoot`, `shootProgress`, `listImages`, `listScenes`, `regroupScenes`,
-   `exportXmp`, `organizePlan`, `organizeRun`, `organizeProgress`, `setPick`,
-   `setStars`, `setColor`, `setCrop`, and the `thumbUrl`/`previewUrl`/`fullUrl`
-   URL builders.
+   `exportXmp`, `organizePlan`, `organizeRun`, `organizeProgress`, `eventsPlan`,
+   `eventsRun`, `eventsProgress`, `eventsUndo`, `setPick`,
+   `setStars`, `setColor`, `setCrop`, and the `thumbUrl`/`previewUrl`/`fullUrl`/
+   `eventThumbUrl` URL builders (the last loads `/events/thumb` for a folder
+   that isn't open as a shoot).
 2. **Image bytes** — `<img>` loads directly from the worker:
    `http://127.0.0.1:<port>/files/{thumb|preview|full|original}?rel=…&token=…`.
    The token goes in the query string (you can't set headers on `<img>`); leak

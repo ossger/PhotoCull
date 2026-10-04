@@ -69,10 +69,11 @@ async function workerFetch<T>(pathname: string, init?: RequestInit): Promise<T> 
 }
 
 function registerIpc(): void {
-  ipcMain.handle("pickFolder", async () => {
+  ipcMain.handle("pickFolder", async (_e, title?: string, defaultPath?: string) => {
     if (!mainWindow) return null;
     const result = await dialog.showOpenDialog(mainWindow, {
-      title: "Open shoot folder",
+      title: title ?? "Open shoot folder",
+      defaultPath,
       properties: ["openDirectory"],
     });
     if (result.canceled || result.filePaths.length === 0) return null;
@@ -124,6 +125,36 @@ function registerIpc(): void {
   );
 
   ipcMain.handle("organizeProgress", async () => workerFetch("/organize/progress"));
+
+  ipcMain.handle("eventsPlan", async (_e, folder: string, gapHours: number) =>
+    workerFetch("/events/plan", {
+      method: "POST",
+      body: JSON.stringify({ folder, gap_hours: gapHours }),
+    }),
+  );
+
+  ipcMain.handle(
+    "eventsRun",
+    async (
+      _e,
+      folder: string,
+      gapHours: number,
+      groups: { event_ids: string[]; name: string }[],
+    ) =>
+      workerFetch("/events/run", {
+        method: "POST",
+        body: JSON.stringify({ folder, gap_hours: gapHours, groups }),
+      }),
+  );
+
+  ipcMain.handle("eventsProgress", async () => workerFetch("/events/progress"));
+
+  ipcMain.handle("eventsUndo", async (_e, folder: string) =>
+    workerFetch("/events/undo", {
+      method: "POST",
+      body: JSON.stringify({ folder }),
+    }),
+  );
 
   ipcMain.handle("setPick", async (_e, imageId: number, pick: number) =>
     workerFetch(`/images/${imageId}/pick`, {

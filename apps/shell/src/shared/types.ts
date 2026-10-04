@@ -109,9 +109,49 @@ export interface OrganizeProgress {
   renamed: number;
 }
 
+// ----- sort a card dump into event folders -----
+
+// One proposed event: a run of captures with no gap longer than the threshold.
+export interface EventProposal {
+  id: string;
+  start: string; // ISO local time of the first capture
+  end: string;
+  count: number; // captures (a RAW+JPEG pair counts once)
+  files: number; // files on disk, incl. pairs and sidecars
+  undated: number; // captures dated by file mtime (no EXIF date)
+  default_name: string; // "YYYY-MM-DD" (+ a/b when a day has several)
+  samples: string[]; // file names for eventThumbUrl
+}
+
+export interface EventsPlan {
+  folder: string;
+  gap_hours: number;
+  total_units: number;
+  total_files: number;
+  orphans: string[]; // sidecars with no matching photo; left in place
+  events: EventProposal[];
+  can_undo: boolean;
+}
+
+export interface EventGroupInput {
+  event_ids: string[];
+  name: string;
+}
+
+export interface EventsProgress {
+  state: "idle" | "running" | "complete" | "error";
+  done: number;
+  total: number;
+  current: string | null;
+  moved: number;
+  renamed: number;
+  folders: string[];
+  error: string | null;
+}
+
 // The bridge exposed by the preload script to the renderer.
 export interface PhotoCullBridge {
-  pickFolder(): Promise<string | null>;
+  pickFolder(title?: string, defaultPath?: string): Promise<string | null>;
   openShoot(path: string): Promise<OpenShootResult>;
   shootProgress(): Promise<ShootProgress>;
   listImages(): Promise<ImageRow[]>;
@@ -125,6 +165,12 @@ export interface PhotoCullBridge {
   organizePlan(source: string, library: string, label: string | null): Promise<OrganizePlan>;
   organizeRun(source: string, library: string, label: string | null): Promise<OrganizeRunResult>;
   organizeProgress(): Promise<OrganizeProgress>;
+  // Sort the loose files in one folder into "YYYY-MM-DD Name" event subfolders.
+  eventsPlan(folder: string, gapHours: number): Promise<EventsPlan>;
+  eventsRun(folder: string, gapHours: number, groups: EventGroupInput[]): Promise<{ started: boolean }>;
+  eventsProgress(): Promise<EventsProgress>;
+  eventsUndo(folder: string): Promise<{ restored: number; missing: number }>;
+  eventThumbUrl(folder: string, name: string): string;
   setPick(imageId: number, pick: -1 | 0 | 1): Promise<void>;
   setStars(imageId: number, stars: number): Promise<void>;
   setColor(imageId: number, color: string | null): Promise<void>;

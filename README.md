@@ -104,6 +104,33 @@ EXIF date fall back to file modification time. Collisions are never overwritten
 — identical files are skipped, differing ones get a numeric suffix. `_RawIngest/`
 and `PhotoLibrary/` are git-ignored. (Google/iCloud import is a future source.)
 
+## Sorting a card dump into events (Sort into events…)
+
+If you copy the whole card into one folder (say `~/Desktop/RAW`), **Sort into
+events…** in the toolbar splits it into one subfolder per event, ready to open
+and cull one at a time:
+
+1. Choose the folder. PhotoCull reads every capture time (one batched exiftool
+   pass; file mtime when there's no EXIF date) and proposes events. A new event
+   starts wherever there's a gap longer than the slider value between shots
+   (default 3 h).
+2. Each event shows its time span, count, and a few thumbnails. Type a name and
+   the folder is created as `YYYY-MM-DD Name`. Unnamed events get just the date,
+   plus `a`/`b` when a day holds more than one. **Merge with next** joins events
+   the gap rule split, the checkbox leaves an event unsorted, and moving the
+   slider re-proposes.
+3. **Sort** moves the files into subfolders *inside the same folder*. A RAW, its
+   paired JPEG, and companions (`.xmp`, `.thm`, `.lrv`, `.srt`, `.aae`) travel
+   together. Videos are sorted alongside photos. Nothing is overwritten: name
+   clashes get a shared `_1` suffix so pairs stay paired.
+4. **Undo last sort** puts everything back. A journal is kept in the folder's
+   `.photocull/` until you undo it.
+
+Only loose files at the top of the folder are considered. Subfolders, including
+events you've already sorted, are left alone, so re-running after the next card
+dump only picks up the new files. If the folder (or one inside it) is open as a
+shoot, it is closed first.
+
 ## Roadmap
 
 - **Phase 1 (done)** — walking skeleton: folder pick, JPEG ingest, virtualized grid, star/pick hotkeys
@@ -112,3 +139,9 @@ and `PhotoLibrary/` are git-ignored. (Google/iCloud import is a future source.)
 - **Phase 4 (in progress)** — local aesthetic scoring (contrast + colorfulness
   heuristic, done); optional Claude/Google Vision API scoring and CLIP smart
   scenes still to come
+- **Post-cull pipeline (idea, not started)** — the steps after culling, currently
+  done by hand. Hand picks to Lightroom / Photoshop for editing (the XMP sidecars
+  already carry picks/stars/crop), then share the edited exports: an Instagram
+  post, an Immich upload, and the family's TV screens (Google TV + Fire TV).
+  A shared Immich or Google Photos album is the likely single source for those
+  screens.

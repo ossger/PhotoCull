@@ -24,6 +24,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from . import __version__
+from . import events as events_mod
 from . import organize as organize_mod
 from .shoot import Shoot
 
@@ -62,6 +63,20 @@ def _set_progress(done: int, total: int, current: str) -> None:
     _progress["done"] = done
     _progress["total"] = total
     _progress["current"] = current
+
+
+# Sort-into-events progress; same shape and lifecycle as organize's.
+_events_progress: dict[str, Any] = {
+    "state": "idle", "done": 0, "total": 0, "current": None,
+    "moved": 0, "renamed": 0, "folders": [], "error": None,
+}
+
+
+def _set_events_progress(done: int, total: int, current: str) -> None:
+    _events_progress["state"] = "running"
+    _events_progress["done"] = done
+    _events_progress["total"] = total
+    _events_progress["current"] = current
 
 
 # Card-import (organize) progress; independent of the ingest progress above so a
@@ -126,6 +141,27 @@ class OrganizeBody(BaseModel):
     source: str = Field(..., description="Inbox/card folder to pull images from")
     library: str = Field(..., description="Library root to sort the dated folders into")
     label: str | None = Field(None, description="Override the per-folder source token")
+
+
+class EventsPlanBody(BaseModel):
+    """Propose events for the loose files at the top level of a folder."""
+    folder: str = Field(..., description="Folder holding the card dump")
+    gap_hours: float = Field(events_mod.DEFAULT_GAP_HOURS, gt=0, le=168)
+
+
+class EventGroup(BaseModel):
+    event_ids: list[str] = Field(..., min_length=1)
+    name: str = ""
+
+
+class EventsRunBody(BaseModel):
+    folder: str
+    gap_hours: float = Field(events_mod.DEFAULT_GAP_HOURS, gt=0, le=168)
+    groups: list[EventGroup]
+
+
+class EventsFolderBody(BaseModel):
+    folder: str
 
 
 # ----- app -----
@@ -272,6 +308,92 @@ async def organize_run(body: OrganizeBody) -> dict[str, Any]:
 @app.get("/organize/progress", dependencies=[Depends(require_token)])
 def organize_progress() -> dict[str, Any]:
     return dict(_organize_progress)
+
+
+# ----- sort a card dump into event folders (independent of an open shoot) -----
+
+def _events_folder(folder: str) -> Path:
+    root = Path(folder).expanduser()
+    if not root.is_dir():
+        raise HTTPException(404, f"folder not found: {root}")
+    return root.resolve()
+
+
+def _release_shoot_under(root: Path) -> None:
+    """Close the open shoot if it lives in (or contains) the folder being sorted —
+    moving its files would leave shoot.db pointing at paths that no longer exist."""
+    global _shoot
+    if _shoot is None:
+        return
+    shoot_root = _shoot.root
+    if shoot_root == root or root in shoot_root.parents or shoot_root in root.parents:
+        _shoot.close()
+        _shoot = None
+
+
+@app.post("/events/plan", dependencies=[Depends(require_token)])
+def events_plan(body: EventsPlanBody) -> dict[str, Any]:
+    """Dry preview: loose files grouped into events by capture-time gaps."""
+    return events_mod.plan(_events_folder(body.folder), body.gap_hours)
+
+
+@app.post("/events/run", dependencies=[Depends(require_token)])
+async def events_run(body: EventsRunBody) -> dict[str, Any]:
+    """Move each group into its folder in the background; poll /events/progress."""
+    root = _events_folder(body.folder)
+    groups = [(g.event_ids, g.name) for g in body.groups]
+    _release_shoot_under(root)
+    _events_progress.update(
+        state="running", done=0, total=0, current="reading metadata",
+        moved=0, renamed=0, folders=[], error=None,
+    )
+
+    async def _run() -> None:
+        loop = asyncio.get_running_loop()
+        try:
+            result = await loop.run_in_executor(
+                None,
+                lambda: events_mod.run(root, body.gap_hours, groups,
+                                       progress=_set_events_progress),
+            )
+        except events_mod.PlanChanged:
+            _events_progress.update(
+                state="error", current=None,
+                error="The folder changed since the preview. Preview again and retry.",
+            )
+            return
+        except Exception as exc:  # noqa: BLE001 - surface to the modal, not a 500
+            log.exception("events run failed")
+            _events_progress.update(state="error", current=None, error=str(exc))
+            return
+        _events_progress.update(
+            state="complete", current=None, moved=result.moved,
+            renamed=result.renamed, folders=result.folders,
+        )
+
+    asyncio.create_task(_run())
+    return {"started": True}
+
+
+@app.get("/events/progress", dependencies=[Depends(require_token)])
+def events_progress() -> dict[str, Any]:
+    return dict(_events_progress)
+
+
+@app.post("/events/undo", dependencies=[Depends(require_token)])
+def events_undo(body: EventsFolderBody) -> dict[str, int]:
+    """Put the newest sort's files back at the top level of the folder."""
+    root = _events_folder(body.folder)
+    _release_shoot_under(root)
+    return events_mod.undo(root)
+
+
+@app.get("/events/thumb", dependencies=[Depends(require_token_or_query)])
+def events_thumb(folder: str = Query(...), name: str = Query(...)) -> FileResponse:
+    p = events_mod.thumbnail(_events_folder(folder), name)
+    if p is None:
+        raise HTTPException(404)
+    return FileResponse(p, media_type="image/jpeg")
 
 
 # ----- batch mutations (multi-select culling) -----

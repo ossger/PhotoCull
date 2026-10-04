@@ -2,6 +2,16 @@
 
 All notable changes to PhotoCull. Versions correspond to git tags (`v0.3.0`, …).
 
+## Unreleased
+
+- **Sort into events.** A new toolbar action splits a flat card-dump folder into
+  `YYYY-MM-DD Name` subfolders, one per event, wherever there's a gap between
+  shots longer than an adjustable threshold (default 3 h). You get a preview with
+  thumbnails, typed names, and merge/skip controls before anything moves.
+  RAW+JPEG pairs, sidecars and videos move together, nothing is ever overwritten,
+  and the last sort can be undone. Each sorted event opens straight into a cull.
+- The folder picker now takes a per-use title instead of always saying "Open shoot folder".
+
 ## 0.3.1 — 2026-08-25
 
 No app changes — same feature set as 0.3.0. The macOS build is now signed with

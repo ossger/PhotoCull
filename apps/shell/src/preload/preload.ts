@@ -28,6 +28,17 @@ function fileUrl(kind: "thumb" | "preview" | "full" | "original", rel: string): 
   return `http://127.0.0.1:${cachedInfo.port}/files/${kind}?${params.toString()}`;
 }
 
+// Preview thumbnail of a loose file in a folder being sorted into events —
+// there's no open shoot (and so no cache) for it yet.
+function eventThumbUrl(folder: string, name: string): string {
+  if (!cachedInfo) {
+    void ensureInfo();
+    return "";
+  }
+  const params = new URLSearchParams({ folder, name, token: cachedInfo.token });
+  return `http://127.0.0.1:${cachedInfo.port}/events/thumb?${params.toString()}`;
+}
+
 interface ImageRowLike {
   rel_path: string;
   full_path: string | null;
@@ -41,7 +52,8 @@ function fullUrlFor(image: ImageRowLike): string {
 void ensureInfo();
 
 contextBridge.exposeInMainWorld("photocull", {
-  pickFolder: () => invoke("pickFolder"),
+  pickFolder: (title?: string, defaultPath?: string) =>
+    invoke("pickFolder", title, defaultPath),
   openShoot: (p: string) => invoke("openShoot", p),
   shootProgress: () => invoke("shootProgress"),
   listImages: () => invoke("listImages"),
@@ -53,6 +65,12 @@ contextBridge.exposeInMainWorld("photocull", {
   organizeRun: (source: string, library: string, label: string | null) =>
     invoke("organizeRun", source, library, label),
   organizeProgress: () => invoke("organizeProgress"),
+  eventsPlan: (folder: string, gapHours: number) => invoke("eventsPlan", folder, gapHours),
+  eventsRun: (folder: string, gapHours: number, groups: { event_ids: string[]; name: string }[]) =>
+    invoke("eventsRun", folder, gapHours, groups),
+  eventsProgress: () => invoke("eventsProgress"),
+  eventsUndo: (folder: string) => invoke("eventsUndo", folder),
+  eventThumbUrl: (folder: string, name: string) => eventThumbUrl(folder, name),
   setPick: (id: number, pick: -1 | 0 | 1) => invoke("setPick", id, pick),
   setStars: (id: number, stars: number) => invoke("setStars", id, stars),
   setColor: (id: number, color: string | null) =>
