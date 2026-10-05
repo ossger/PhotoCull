@@ -188,7 +188,7 @@ PhotoCull is free and open source. If it saves you time on a shoot, you can
 support its development:
 
 - **GitHub Sponsors** — the **Sponsor** button at the top of this repo
-- **Ko-fi** / **Buy Me a Coffee** — links in the Sponsor button as well
+- **Buy Me a Coffee** — [buymeacoffee.com/ossger](https://buymeacoffee.com/ossger)
 
 Bug reports, feature ideas, and pull requests are just as welcome — see
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
