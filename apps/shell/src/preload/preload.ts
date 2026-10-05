@@ -1,5 +1,6 @@
 // Context bridge: exposes a typed, allow-listed API to the renderer.
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
+import type { FilmstripAction, StoreSyncSnapshot } from "../shared/types";
 
 const invoke = (channel: string, ...args: unknown[]) =>
   ipcRenderer.invoke(channel, ...args);
@@ -48,6 +49,16 @@ function fullUrlFor(image: ImageRowLike): string {
   return fileUrl("original", image.rel_path);
 }
 
+// Subscribe to a main -> renderer channel; returns an unsubscribe function.
+// The raw IpcRendererEvent is never handed to the renderer (it carries `sender`).
+function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
+  const listener = (_e: IpcRendererEvent, payload: T) => cb(payload);
+  ipcRenderer.on(channel, listener);
+  return () => {
+    ipcRenderer.removeListener(channel, listener);
+  };
+}
+
 // Eagerly cache info at preload time so the renderer never sees an empty URL.
 void ensureInfo();
 
@@ -86,4 +97,18 @@ contextBridge.exposeInMainWorld("photocull", {
   thumbUrl: (rel: string) => fileUrl("thumb", rel),
   previewUrl: (rel: string) => fileUrl("preview", rel),
   fullUrl: (image: ImageRowLike) => fullUrlFor(image),
+  // Torn-off filmstrip window. main.ts checks which window each send came from.
+  popOutFilmstrip: () => invoke("filmstrip:popOut"),
+  dockFilmstrip: () => invoke("filmstrip:dock"),
+  isFilmstripPoppedOut: () => invoke("filmstrip:isPoppedOut"),
+  onFilmstripPoppedOut: (cb: (poppedOut: boolean) => void) =>
+    subscribe<boolean>("filmstrip:poppedOut", cb),
+  sendStoreSync: (snapshot: StoreSyncSnapshot) => ipcRenderer.send("filmstrip:sync", snapshot),
+  onStoreSyncRequest: (cb: () => void) => subscribe<void>("filmstrip:syncRequest", () => cb()),
+  onFilmstripAction: (cb: (action: FilmstripAction) => void) =>
+    subscribe<FilmstripAction>("filmstrip:action", cb),
+  onStoreSync: (cb: (snapshot: StoreSyncSnapshot) => void) =>
+    subscribe<StoreSyncSnapshot>("filmstrip:sync", cb),
+  requestStoreSync: () => ipcRenderer.send("filmstrip:syncRequest"),
+  sendFilmstripAction: (action: FilmstripAction) => ipcRenderer.send("filmstrip:action", action),
 });

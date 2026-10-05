@@ -1,77 +1,90 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { useStore, sceneImages } from "../store";
-import { Thumbnail } from "./Thumbnail";
-import { useMarquee, useThumbClick } from "../useMarquee";
-import { RankBadge } from "./RankBadge";
+import { usePersistentNumber } from "../usePersistentNumber";
+import { SizeSlider, ThumbStrip } from "./ThumbStrip";
+
+// Docked filmstrip: a resizable row of thumbnails under the loupe. Drag the
+// top edge (or use the header slider) to resize; thumbnail width follows the
+// height. "Pop out" tears it off into its own window (FilmstripWindow), in
+// which case this collapses to a one-line placeholder with a Dock button.
+
+const SIZE_KEY = "photocull.filmstripSize";
+export const FILMSTRIP_MIN = 64;
+export const FILMSTRIP_MAX = 320;
+const FILMSTRIP_DEFAULT = 128; // the strip's original fixed h-36 / w-32 look
 
 export function Filmstrip() {
-  const images = useStore(sceneImages);
-  const selectedSceneId = useStore((s) => s.selectedSceneId);
-  const selectedImageId = useStore((s) => s.selectedImageId);
-  const selectedIds = useStore((s) => s.selectedIds);
-  const compareMode = useStore((s) => s.compareMode);
-  const compareIds = useStore((s) => s.compareIds);
-  const sortMode = useStore((s) => s.sortMode);
-  const toggleCompareMember = useStore((s) => s.toggleCompareMember);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const onThumbClick = useThumbClick();
-  const { onPointerDown, onClickCapture, marqueeRect, previewIds } = useMarquee(containerRef);
-  const effectiveSelected = previewIds ?? selectedIds;
+  const poppedOut = useStore((s) => s.filmstripPoppedOut);
+  const count = useStore((s) => sceneImages(s).length);
+  const [size, setSize] = usePersistentNumber(SIZE_KEY, FILMSTRIP_DEFAULT, FILMSTRIP_MIN, FILMSTRIP_MAX);
+  const dragRef = useRef<{ startY: number; startSize: number } | null>(null);
 
-  useEffect(() => {
-    if (selectedImageId == null || !containerRef.current) return;
-    const el = containerRef.current.querySelector<HTMLElement>(
-      `[data-image-id="${selectedImageId}"]`,
-    );
-    el?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
-  }, [selectedImageId]);
-
-  if (images.length === 0) {
+  if (poppedOut) {
     return (
-      <div className="h-32 flex items-center justify-center text-muted text-sm border-t border-line bg-panel">
-        {selectedSceneId == null ? "Select a scene to see its frames" : "No frames match the current filter"}
+      <div className="px-3 py-1 flex items-center justify-between text-xs text-muted border-t border-line bg-panel">
+        <span>Filmstrip is open in its own window.</span>
+        <button
+          type="button"
+          onClick={() => void window.photocull.dockFilmstrip()}
+          className="rounded px-1.5 py-0.5 border border-line hover:text-ink"
+          title="Close the filmstrip window and dock it back here"
+        >
+          Dock
+        </button>
       </div>
     );
   }
 
+  const onHandleDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = { startY: e.clientY, startSize: size };
+  };
+  const onHandleMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (!d) return;
+    // Dragging the top edge up grows the strip.
+    setSize(d.startSize + (d.startY - e.clientY));
+  };
+  const onHandleUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    dragRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  };
+
   return (
-    <div
-      ref={containerRef}
-      onPointerDown={compareMode ? undefined : onPointerDown}
-      onClickCapture={compareMode ? undefined : onClickCapture}
-      className="relative h-36 flex items-stretch gap-1.5 p-2 overflow-x-auto border-t border-line bg-panel"
-    >
-      {images.map((img, idx) => (
-        <div
-          key={img.id}
-          data-image-id={img.id}
-          className="w-32 h-full flex-shrink-0 relative"
-        >
-          <Thumbnail
-            image={img}
-            selected={img.id === selectedImageId && !compareMode}
-            inSelection={!compareMode && effectiveSelected.includes(img.id)}
-            inCompare={compareMode && compareIds.includes(img.id)}
-            showScore
-            onClick={(e) => {
-              if (compareMode) toggleCompareMember(img.id);
-              else onThumbClick(e, img.id);
-            }}
-          />
-          {sortMode === "rank" && <RankBadge rank={idx + 1} total={images.length} />}
+    <div className="relative flex flex-col border-t border-line bg-panel">
+      <div
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize filmstrip"
+        title="Drag to resize the filmstrip"
+        onPointerDown={onHandleDown}
+        onPointerMove={onHandleMove}
+        onPointerUp={onHandleUp}
+        onPointerCancel={onHandleUp}
+        onDoubleClick={() => setSize(FILMSTRIP_DEFAULT)}
+        className="absolute left-0 right-0 -top-1 h-2 z-10 cursor-ns-resize hover:bg-accent/40 transition-colors"
+      />
+      <div className="h-6 px-2 flex items-center justify-between gap-3 text-[11px] text-muted border-b border-line/60">
+        <span className="uppercase tracking-wide">
+          Filmstrip{count > 0 ? ` · ${count}` : ""}
+        </span>
+        <div className="flex items-center gap-3">
+          <SizeSlider value={size} min={FILMSTRIP_MIN} max={FILMSTRIP_MAX} onChange={setSize} />
+          <button
+            type="button"
+            onClick={() => void window.photocull.popOutFilmstrip()}
+            className="rounded px-1.5 leading-4 border border-line hover:text-ink"
+            title="Open the filmstrip in its own window"
+          >
+            Pop out
+          </button>
         </div>
-      ))}
-      {marqueeRect && (
-        <div
-          className="absolute border border-accent bg-accent/20 pointer-events-none"
-          style={{
-            left: marqueeRect.left,
-            top: marqueeRect.top,
-            width: marqueeRect.width,
-            height: marqueeRect.height,
-          }}
-        />
-      )}
+      </div>
+      <ThumbStrip layout="row" size={size} />
     </div>
   );
 }

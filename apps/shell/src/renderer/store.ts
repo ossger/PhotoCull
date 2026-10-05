@@ -64,6 +64,12 @@ interface Store {
   viewMode: ViewMode;
   compareIds: number[];
   compareMode: boolean;
+  // Compare view: mirror one cell's zoom/pan onto every other cell (hotkey L
+  // while comparing). Off by default; not persisted.
+  compareSyncZoom: boolean;
+  // The filmstrip lives in its own window (main-window side only; the main
+  // process tells us). Not part of the pop-out sync.
+  filmstripPoppedOut: boolean;
   // Crop edit mode + the draft rect while editing. Committed crops live on
   // the ImageRow (crop_left/top/right/bottom) and persist through the worker.
   cropMode: boolean;
@@ -115,6 +121,8 @@ interface Store {
   toggleCompare: () => void;
   toggleCompareMember: (id: number) => void;
   exitCompare: () => void;
+  toggleCompareSyncZoom: () => void;
+  setFilmstripPoppedOut: (poppedOut: boolean) => void;
 
   setSortMode: (mode: SortMode) => void;
   setFilters: (filters: FilterState) => void;
@@ -261,6 +269,8 @@ export const useStore = create<Store>((set, get) => ({
   viewMode: loadViewMode(),
   compareIds: [],
   compareMode: false,
+  compareSyncZoom: false,
+  filmstripPoppedOut: false,
   cropMode: false,
   cropDraft: null,
   showFaces: false,
@@ -520,15 +530,20 @@ export const useStore = create<Store>((set, get) => ({
   toggleCompare() {
     set((s) => {
       if (s.compareMode) return { compareMode: false, compareIds: [] };
-      // Entering compare: seed from the current multi-selection (capped at
-      // 4), falling back to just the primary image.
-      const initial =
-        s.selectedIds.length > 0
-          ? s.selectedIds.slice(0, 4)
-          : s.selectedImageId != null
-            ? [s.selectedImageId]
-            : [];
-      return { compareMode: true, compareIds: initial };
+      // Entering compare: an explicit multi-selection (2+) wins, capped at 4.
+      if (s.selectedIds.length >= 2) {
+        return { compareMode: true, compareIds: s.selectedIds.slice(0, 4) };
+      }
+      // Otherwise seed four frames: the primary plus the next three in the
+      // order the filmstrip shows (same as the sceneImages selector),
+      // backfilling with the frames before it near the end of the scene.
+      const primary = s.selectedImageId ?? s.selectedIds[0] ?? null;
+      if (primary == null) return { compareMode: true, compareIds: [] };
+      const ids = visibleImageIds(s.images, s.viewScope, s.selectedSceneId, s.sortMode, s.filters);
+      const idx = ids.indexOf(primary);
+      if (idx === -1) return { compareMode: true, compareIds: [primary] };
+      const start = Math.max(0, Math.min(idx, ids.length - 4));
+      return { compareMode: true, compareIds: ids.slice(start, start + 4) };
     });
   },
 
@@ -548,6 +563,14 @@ export const useStore = create<Store>((set, get) => ({
 
   exitCompare() {
     set({ compareMode: false, compareIds: [] });
+  },
+
+  toggleCompareSyncZoom() {
+    set((s) => ({ compareSyncZoom: !s.compareSyncZoom }));
+  },
+
+  setFilmstripPoppedOut(poppedOut) {
+    set({ filmstripPoppedOut: poppedOut });
   },
 
   setSortMode(mode) {

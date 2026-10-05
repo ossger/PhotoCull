@@ -11,16 +11,21 @@ import { useStore } from "./store";
 //     U           unset pick (applies to the whole selection)
 //     0-5         star rating (applies to the whole selection)
 //     G           toggle grid view / loupe
-//     C           toggle compare mode (seeded from the selection)
+//     C           toggle compare mode — seeded from a 2+ multi-selection,
+//                 else the current frame plus the next three in the scene
 //     F           toggle face / eye detection overlay
 //     E           toggle auto eye-zoom loupe (snap to subject's eyes)
 //     L           toggle a quick "picks only" filter
+//                 (in compare mode: toggle sync zoom across the compared frames)
 //     Shift+L     clear all advanced filters
 //     /           toggle the advanced filter panel
 //     M           toggle Scenes / Matches (flattened, filtered shoot-wide list)
 //     R           enter crop mode
 //     Shift+R     clear any saved crop
 //     Esc         crop mode > compare mode > clear multi-selection, in that order
+//   Inside compare mode, per frame (mouse, see CompareView): wheel zoom,
+//   drag pan, double-click fit / 1:1; the frame's expand button opens it in
+//   the loupe.
 //   Inside crop mode:
 //     Enter   apply
 //     Esc     cancel
@@ -33,6 +38,7 @@ export function useHotkeys() {
   const toggleViewMode = useStore((s) => s.toggleViewMode);
   const toggleCompare = useStore((s) => s.toggleCompare);
   const exitCompare = useStore((s) => s.exitCompare);
+  const toggleCompareSyncZoom = useStore((s) => s.toggleCompareSyncZoom);
   const toggleFaces = useStore((s) => s.toggleFaces);
   const toggleEyeZoom = useStore((s) => s.toggleEyeZoom);
   const setFilters = useStore((s) => s.setFilters);
@@ -128,6 +134,8 @@ export function useHotkeys() {
         case "L":
           if (e.shiftKey) {
             clearFilters();
+          } else if (state.compareMode) {
+            toggleCompareSyncZoom();
           } else {
             // Quick toggle: picked-only, layered onto whatever else is set.
             const isPicksOnly =
@@ -195,6 +203,7 @@ export function useHotkeys() {
     toggleViewMode,
     toggleCompare,
     exitCompare,
+    toggleCompareSyncZoom,
     toggleFaces,
     toggleEyeZoom,
     setFilters,

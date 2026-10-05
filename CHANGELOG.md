@@ -11,6 +11,25 @@ All notable changes to PhotoCull. Versions correspond to git tags (`v0.3.0`, …
   RAW+JPEG pairs, sidecars and videos move together, nothing is ever overwritten,
   and the last sort can be undone. Each sorted event opens straight into a cull.
 - The folder picker now takes a per-use title instead of always saying "Open shoot folder".
+- **Zoom and pan in compare.** Each compared frame now zooms on its own: scroll
+  to zoom toward the cursor, drag to pan, double-click for fit / 1:1, honouring
+  any saved crop. Full resolution loads once you zoom in. Clicking a frame no
+  longer leaves compare. Each frame has an **Open in loupe** button instead.
+  **Sync zoom** (toolbar toggle, or `L` while comparing) mirrors one frame's
+  zoom and pan onto the others. It is off by default.
+- **Compare starts with four frames.** Pressing `C` with a single frame selected
+  now compares it with the next three in the filmstrip's order (or the frames
+  before it near the end of a scene). A multi-selection of two or more is still
+  compared as-is.
+- **Resizable, pop-out filmstrip.** Drag the filmstrip's top edge or use its size
+  slider to scale the thumbnails. The size is remembered. **Pop out** moves the
+  filmstrip into its own window as a wrapping, scalable thumbnail grid. Clicks,
+  multi-select, compare and rating hotkeys there act on the main window.
+  Closing that window (or **Dock**) puts the strip back. The window's position
+  and size are remembered.
+- **Crop defaults to Original aspect.** Crop mode now opens locked to the frame's
+  own aspect ratio. Re-editing a saved crop of another shape keeps that shape:
+  the matching preset is selected, or Free if none matches.
 
 ## 0.3.1 — 2026-08-25
 

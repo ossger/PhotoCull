@@ -51,6 +51,12 @@ Two paths reach the worker from the renderer:
    `setStars`, `setColor`, `setCrop`, and the `thumbUrl`/`previewUrl`/`fullUrl`/
    `eventThumbUrl` URL builders (the last loads `/events/thumb` for a folder
    that isn't open as a shoot).
+   Not worker-bound: the **filmstrip pop-out** bridge (`popOutFilmstrip`,
+   `dockFilmstrip`, `isFilmstripPoppedOut`, `onFilmstripPoppedOut`,
+   `sendStoreSync`/`onStoreSync`/`requestStoreSync`/`onStoreSyncRequest`,
+   `sendFilmstripAction`/`onFilmstripAction`). It is a main-process relay between
+   the main window (the authority, the only one that talks to the worker) and
+   the `#filmstrip` window; see `renderer/filmstripSync.ts`.
 2. **Image bytes** — `<img>` loads directly from the worker:
    `http://127.0.0.1:<port>/files/{thumb|preview|full|original}?rel=…&token=…`.
    The token goes in the query string (you can't set headers on `<img>`); leak

@@ -9,6 +9,15 @@ interface Transform {
 
 const FIT: Transform = { scale: 1, tx: 0, ty: 0 };
 
+// A transform expressed independently of any one view's size: translation as
+// a fraction of the displayed (fit-size) picture. Lets compare's "sync zoom"
+// mirror one cell onto others whose pictures differ in size or aspect.
+export interface SharedTransform {
+  scale: number;
+  nx: number;
+  ny: number;
+}
+
 const MIN_SCALE = 1;       // 1 = fit-to-container
 const MAX_SCALE = 16;      // 16x is plenty for pixel-peeping
 const WHEEL_SENSITIVITY = 0.0018;
@@ -26,6 +35,10 @@ interface UseZoomPanResult {
   toggleOneToOne: () => void;
   // Zoom + center on a normalized 0..1 sub-rect of the displayed image.
   zoomToRect: (rect: { x: number; y: number; w: number; h: number }, opts?: { pad?: number }) => void;
+  // Size-independent view of the current transform (null until laid out),
+  // and the inverse: apply one (clamped to this view).
+  toShared: () => SharedTransform | null;
+  applyShared: (t: SharedTransform) => void;
   // Bind these to the container element.
   onWheel: React.WheelEventHandler<HTMLDivElement>;
   onMouseDown: React.MouseEventHandler<HTMLDivElement>;
@@ -63,12 +76,14 @@ export function useZoomPan(naturalSize: { w: number; h: number } | null): UseZoo
 
   const clamp = useCallback((next: Transform): Transform => {
     const c = containerRef.current;
-    if (!c || !boxRef.current) return next;
-    const img = boxRef.current.getBoundingClientRect();
+    const box = boxRef.current;
+    if (!c || !box) return next;
     // The image is centred at scale 1; when zoomed we don't let it slip past
-    // the container edges by more than the image extent.
-    const scaledW = img.width * next.scale;
-    const scaledH = img.height * next.scale;
+    // the container edges by more than the image extent. offsetWidth/Height
+    // are the untransformed (fit) size — getBoundingClientRect would already
+    // include the current zoom and double-count it.
+    const scaledW = box.offsetWidth * next.scale;
+    const scaledH = box.offsetHeight * next.scale;
     const cRect = c.getBoundingClientRect();
     const maxTx = Math.max(0, (scaledW - cRect.width) / 2);
     const maxTy = Math.max(0, (scaledH - cRect.height) / 2);
@@ -125,6 +140,37 @@ export function useZoomPan(naturalSize: { w: number; h: number } | null): UseZoo
       setTransform(clamp({ scale, tx: -scale * cx, ty: -scale * cy }));
     },
     [naturalSize, clamp],
+  );
+
+  // Read through a ref so toShared stays stable (no re-render churn for callers).
+  const transformRef = useRef(transform);
+  transformRef.current = transform;
+
+  const toShared = useCallback((): SharedTransform | null => {
+    const box = boxRef.current;
+    if (!box || box.offsetWidth === 0 || box.offsetHeight === 0) return null;
+    const t = transformRef.current;
+    return {
+      scale: t.scale,
+      nx: t.tx / (box.offsetWidth * t.scale),
+      ny: t.ty / (box.offsetHeight * t.scale),
+    };
+  }, []);
+
+  const applyShared = useCallback(
+    (n: SharedTransform) => {
+      const box = boxRef.current;
+      if (!box || box.offsetWidth === 0 || box.offsetHeight === 0) return;
+      const next = clamp({
+        scale: n.scale,
+        tx: n.nx * box.offsetWidth * n.scale,
+        ty: n.ny * box.offsetHeight * n.scale,
+      });
+      setTransform((cur) =>
+        cur.scale === next.scale && cur.tx === next.tx && cur.ty === next.ty ? cur : next,
+      );
+    },
+    [clamp],
   );
 
   const onWheel: React.WheelEventHandler<HTMLDivElement> = useCallback(
@@ -205,6 +251,8 @@ export function useZoomPan(naturalSize: { w: number; h: number } | null): UseZoo
     reset,
     toggleOneToOne,
     zoomToRect,
+    toShared,
+    applyShared,
     onWheel,
     onMouseDown,
     onDoubleClick,

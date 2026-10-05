@@ -7,8 +7,11 @@ import type { CropRect } from "@shared/types";
  *
  * Renders dimmed-exterior + clear-interior on top of the loupe image.
  * Drag inside the clear rect to move; drag any of the 8 handles to resize.
- * An aspect-ratio dropdown locks the rect proportions (Free / 1:1 / 3:2 /
- * 4:5 / 16:9).
+ * An aspect-ratio dropdown locks the rect proportions (Free / Original /
+ * 1:1 / 3:2 / 4:5 / 16:9 …). It starts on Original (the frame's own aspect)
+ * — unless the frame already has a saved crop of some other shape, in which
+ * case it starts on whichever preset matches that crop (or Free), so simply
+ * re-opening crop mode never reshapes a crop you already made.
  *
  * The crop is stored normalised 0..1 of the image. The component takes the
  * displayed image's bounding rect (the area the photo actually occupies on
@@ -96,6 +99,21 @@ function applyAspect(
   return next;
 }
 
+// The preset the overlay opens on, given the draft it's handed at mount.
+// imageAspect must be the real frame aspect here (Loupe only mounts the
+// overlay once the image's natural size is known).
+function initialAspectKey(draft: CropRect | null, imageAspect: number, hasSavedCrop: boolean): string {
+  if (!draft || !hasSavedCrop) return "orig";
+  const w = draft.right - draft.left;
+  const h = draft.bottom - draft.top;
+  if (w <= 0 || h <= 0) return "orig";
+  const displayed = (w * imageAspect) / h;
+  const close = (r: number) => Math.abs(displayed / r - 1) < 0.01;
+  if (close(imageAspect)) return "orig";
+  const match = ASPECT_PRESETS.find((p) => p.ratio != null && p.ratio > 0 && close(p.ratio));
+  return match?.key ?? "free";
+}
+
 export function CropOverlay({ imageBox, imageAspect }: Props) {
   const draft = useStore((s) => s.cropDraft);
   const setDraft = useStore((s) => s.setCropDraft);
@@ -103,7 +121,14 @@ export function CropOverlay({ imageBox, imageAspect }: Props) {
   const exitCrop = useStore((s) => s.exitCropMode);
   const clearCrop = useStore((s) => s.clearCrop);
 
-  const [aspectKey, setAspectKey] = useState("free");
+  const hasSavedCrop = useStore((s) => {
+    const img = s.images.find((i) => i.id === s.selectedImageId);
+    return img?.crop_left != null;
+  });
+
+  const [aspectKey, setAspectKey] = useState(() =>
+    initialAspectKey(useStore.getState().cropDraft, imageAspect, hasSavedCrop),
+  );
 
   const targetAspect = useMemo(() => {
     const found = ASPECT_PRESETS.find((p) => p.key === aspectKey);
@@ -113,7 +138,10 @@ export function CropOverlay({ imageBox, imageAspect }: Props) {
 
   const dragRef = useRef<Drag | null>(null);
 
-  // Reapply aspect constraint when the user picks a non-free ratio.
+  // Enforce the aspect lock at mount (so the first draft you see is already
+  // locked), whenever the ratio changes, and whenever a fresh draft appears
+  // (null -> rect). Not on every draft change: drags already apply it.
+  const hasDraft = draft != null;
   useEffect(() => {
     if (!draft || targetAspect == null) return;
     const fixed = applyAspect(draft, "move", targetAspect, imageAspect);
@@ -126,7 +154,7 @@ export function CropOverlay({ imageBox, imageAspect }: Props) {
       setDraft(fixed);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetAspect]);
+  }, [targetAspect, hasDraft]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {

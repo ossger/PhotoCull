@@ -6,9 +6,11 @@ import { GridView } from "./components/GridView";
 import { CompareView } from "./components/CompareView";
 import { useStore } from "./store";
 import { useHotkeys } from "./useHotkeys";
+import { useFilmstripHost } from "./filmstripSync";
 
 export function App() {
   useHotkeys();
+  useFilmstripHost();
   const compareMode = useStore((s) => s.compareMode);
   const viewMode = useStore((s) => s.viewMode);
   return (
@@ -47,8 +49,9 @@ function HotkeyHint() {
         </>
       ) : compareMode ? (
         <>
-          <Key>Click</Key> add/remove ·{" "}
-          <Key>Esc</Key>/<Key>C</Key> exit compare
+          <Key>Click</Key> filmstrip add/remove · <Key>Scroll</Key> zoom ·{" "}
+          <Key>Drag</Key> pan · <Key>Dbl-click</Key> fit/1:1 · <Key>⤢</Key> open in loupe ·{" "}
+          <Key>L</Key> sync zoom · <Key>Esc</Key>/<Key>C</Key> exit compare
         </>
       ) : (
         <>

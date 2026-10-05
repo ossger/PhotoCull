@@ -1,11 +1,23 @@
 // Electron main process: window lifecycle, IPC handlers, sidecar supervision.
 
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  screen,
+  shell,
+  type IpcMainEvent,
+  type Rectangle,
+} from "electron";
+import fs from "node:fs";
 import path from "node:path";
 import { Sidecar } from "./sidecar";
 
 const sidecar = new Sidecar();
 let mainWindow: BrowserWindow | null = null;
+// The torn-off filmstrip (null while docked). See "filmstrip pop-out" below.
+let filmstripWindow: BrowserWindow | null = null;
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
 
@@ -31,12 +43,161 @@ async function createWindow(): Promise<void> {
     return { action: "deny" };
   });
 
+  // The pop-out is a satellite of this window — it can't act on its own.
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+    filmstripWindow?.close();
+  });
+
   if (DEV_URL) {
     await mainWindow.loadURL(DEV_URL);
     mainWindow.webContents.openDevTools({ mode: "detach" });
   } else {
     await mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   }
+}
+
+// ----- filmstrip pop-out -----
+//
+// A second window loading the same renderer with a #filmstrip hash, which
+// renders only a thumbnail grid. The main window stays the authority: it
+// pushes store snapshots here, and the pop-out sends actions/keys back. This
+// process only relays, and drops any message from the wrong window.
+
+const FILMSTRIP_BOUNDS_FILE = "filmstrip-window.json";
+
+function filmstripBoundsPath(): string {
+  return path.join(app.getPath("userData"), FILMSTRIP_BOUNDS_FILE);
+}
+
+function loadFilmstripBounds(): Rectangle | null {
+  try {
+    const raw = JSON.parse(fs.readFileSync(filmstripBoundsPath(), "utf8")) as Partial<Rectangle>;
+    const { x, y, width, height } = raw;
+    if (
+      typeof x !== "number" ||
+      typeof y !== "number" ||
+      typeof width !== "number" ||
+      typeof height !== "number" ||
+      width < 200 ||
+      height < 150
+    ) {
+      return null;
+    }
+    const bounds = { x, y, width, height };
+    // Ignore bounds that no longer land on any display (monitor unplugged).
+    const onScreen = screen.getAllDisplays().some((d) => {
+      const a = d.workArea;
+      return x < a.x + a.width && x + width > a.x && y < a.y + a.height && y + height > a.y;
+    });
+    return onScreen ? bounds : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveFilmstripBounds(bounds: Rectangle): void {
+  try {
+    fs.writeFileSync(filmstripBoundsPath(), JSON.stringify(bounds));
+  } catch (err) {
+    console.warn("Could not save filmstrip window bounds:", err);
+  }
+}
+
+function notifyPoppedOut(poppedOut: boolean): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("filmstrip:poppedOut", poppedOut);
+  }
+}
+
+async function openFilmstripWindow(): Promise<void> {
+  if (filmstripWindow) {
+    if (filmstripWindow.isMinimized()) filmstripWindow.restore();
+    filmstripWindow.focus();
+    return;
+  }
+  const saved = loadFilmstripBounds();
+  const win = new BrowserWindow({
+    width: saved?.width ?? 900,
+    height: saved?.height ?? 600,
+    ...(saved ? { x: saved.x, y: saved.y } : {}),
+    minWidth: 320,
+    minHeight: 200,
+    backgroundColor: "#0f1115",
+    title: "PhotoCull — Filmstrip",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  filmstripWindow = win;
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: "deny" };
+  });
+
+  win.on("close", () => saveFilmstripBounds(win.getBounds()));
+  win.on("closed", () => {
+    if (filmstripWindow === win) filmstripWindow = null;
+    notifyPoppedOut(false);
+  });
+
+  notifyPoppedOut(true);
+  if (DEV_URL) {
+    await win.loadURL(`${DEV_URL.replace(/#.*$/, "")}#filmstrip`);
+  } else {
+    await win.loadFile(path.join(__dirname, "../dist/index.html"), { hash: "filmstrip" });
+  }
+}
+
+function fromMainWindow(e: IpcMainEvent): boolean {
+  return mainWindow != null && !mainWindow.isDestroyed() && e.sender === mainWindow.webContents;
+}
+
+function fromFilmstripWindow(e: IpcMainEvent): boolean {
+  return (
+    filmstripWindow != null &&
+    !filmstripWindow.isDestroyed() &&
+    e.sender === filmstripWindow.webContents
+  );
+}
+
+function registerFilmstripIpc(): void {
+  ipcMain.handle("filmstrip:popOut", async (e) => {
+    if (!mainWindow || e.sender !== mainWindow.webContents) return;
+    await openFilmstripWindow();
+  });
+
+  // Either window may dock (the pop-out has its own Dock button).
+  ipcMain.handle("filmstrip:dock", async () => {
+    filmstripWindow?.close();
+  });
+
+  ipcMain.handle("filmstrip:isPoppedOut", async () => filmstripWindow != null);
+
+  // Main window -> pop-out: store snapshot.
+  ipcMain.on("filmstrip:sync", (e, snapshot: unknown) => {
+    if (!fromMainWindow(e) || !filmstripWindow || filmstripWindow.isDestroyed()) return;
+    if (snapshot == null || typeof snapshot !== "object") return;
+    filmstripWindow.webContents.send("filmstrip:sync", snapshot);
+  });
+
+  // Pop-out -> main window: "send me a full snapshot" (on pop-out mount).
+  ipcMain.on("filmstrip:syncRequest", (e) => {
+    if (!fromFilmstripWindow(e) || !mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send("filmstrip:syncRequest");
+  });
+
+  // Pop-out -> main window: an action or keypress. The main window's
+  // renderer re-checks the action name against its own allow-list.
+  ipcMain.on("filmstrip:action", (e, action: unknown) => {
+    if (!fromFilmstripWindow(e) || !mainWindow || mainWindow.isDestroyed()) return;
+    if (action == null || typeof action !== "object") return;
+    mainWindow.webContents.send("filmstrip:action", action);
+  });
 }
 
 // ----- IPC bridge -----
@@ -212,6 +373,8 @@ function registerIpc(): void {
   );
 
   ipcMain.handle("workerInfo", async () => sidecar.info);
+
+  registerFilmstripIpc();
 }
 
 // ----- bootstrap -----
@@ -239,7 +402,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  if (!mainWindow) createWindow();
 });
 
 app.on("before-quit", () => sidecar.stop());

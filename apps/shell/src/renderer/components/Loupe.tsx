@@ -390,7 +390,9 @@ export function Loupe() {
           />
         )}
 
-        {cropMode && imageBox && (
+        {/* Mounted only once the natural size is known, so the overlay's
+            aspect presets (default: Original) see the real frame aspect. */}
+        {cropMode && imageBox && naturalSize && (
           <CropOverlay imageBox={imageBox} imageAspect={naturalAspect} />
         )}
 

@@ -149,6 +149,46 @@ export interface EventsProgress {
   error: string | null;
 }
 
+// ----- torn-off filmstrip window -----
+//
+// The main window stays the single authority (it alone talks to the worker).
+// It pushes the store slices the pop-out needs as a (partial) snapshot; the
+// pop-out sends back either a store-action call or a raw keypress, which the
+// main window replays against its own store / hotkey handler. The main
+// process only relays — and checks which window each message came from.
+
+// Plain-data store slices mirrored into the pop-out. Kept loose (unknown
+// values) here because the renderer's store types live in the renderer; the
+// renderer narrows them on both ends.
+export type StoreSyncSnapshot = Record<string, unknown>;
+
+// Store actions the pop-out is allowed to invoke on the main window.
+export type FilmstripActionName =
+  | "selectImage"
+  | "toggleSelect"
+  | "selectRange"
+  | "extendRange"
+  | "setSelection"
+  | "selectAllInScene"
+  | "clearSelection"
+  | "toggleCompare"
+  | "toggleCompareMember"
+  | "exitCompare"
+  | "setPickMany"
+  | "setStarsMany";
+
+export type FilmstripAction =
+  | { kind: "call"; name: FilmstripActionName; args: unknown[] }
+  | {
+      kind: "key";
+      key: string;
+      code: string;
+      shiftKey: boolean;
+      metaKey: boolean;
+      ctrlKey: boolean;
+      altKey: boolean;
+    };
+
 // The bridge exposed by the preload script to the renderer.
 export interface PhotoCullBridge {
   pickFolder(title?: string, defaultPath?: string): Promise<string | null>;
@@ -184,6 +224,22 @@ export interface PhotoCullBridge {
   // Full-resolution URL for a given image. JPEG sources stream from the
   // shoot root (full_path is null); RAW/HEIC stream from the cache.
   fullUrl(image: ImageRow): string;
+
+  // Torn-off filmstrip window (see FilmstripAction above).
+  // Main window: open/focus or close the pop-out, and learn its state.
+  popOutFilmstrip(): Promise<void>;
+  dockFilmstrip(): Promise<void>;
+  isFilmstripPoppedOut(): Promise<boolean>;
+  onFilmstripPoppedOut(cb: (poppedOut: boolean) => void): () => void;
+  // Main window -> pop-out: store snapshot (full on request, partial on change).
+  sendStoreSync(snapshot: StoreSyncSnapshot): void;
+  onStoreSyncRequest(cb: () => void): () => void;
+  // Pop-out -> main window: an action or keypress to replay there.
+  onFilmstripAction(cb: (action: FilmstripAction) => void): () => void;
+  // Pop-out side.
+  onStoreSync(cb: (snapshot: StoreSyncSnapshot) => void): () => void;
+  requestStoreSync(): void;
+  sendFilmstripAction(action: FilmstripAction): void;
 }
 
 declare global {
