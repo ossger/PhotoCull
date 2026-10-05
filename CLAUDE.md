@@ -119,33 +119,16 @@ crop rect — these are what XMP export writes out.
 
 ---
 
-## Project Pulse — cross-project context
-
-Every project under `~/Projects` publishes a one-screen **pulse note** into the
-shared Obsidian vault; every session reads them all. Contract + template:
-`Pulse/README.md` in the shared vault — `C:\projects\vault\Pulse\` on the
-workstation, `~/Projects/vault/Pulse/` on the Mac satellite.
-
-- **Session start:** read every file in the vault's `Pulse/` folder and carry
-  over whatever is relevant.
-- **Session end (substantive work only):** refresh `Photography.md` in the
-  vault's `Pulse/` folder — status, **where you left off** (this
-  is what others read instead of probing git WIP), next steps, decisions; bump
-  `updated:` — then commit **only that file** in the vault repo.
-- **Synced + committed — genericize sensitive detail.**
-- Edit only this project's own note, never another's.
-
 ## Security & data handling
 
-Binding rules: `~/Projects/SECURITY.md` (data tiers + checkpoints).
-
-- **This repo has a GitHub remote** — one of only two that do. Everything committed
-  must be **T0 (public-safe)**: no personal photos, no library paths, no API keys.
-  `_RawIngest/` and `PhotoLibrary/` are git-ignored and must stay that way.
-- **Builds are now shipped publicly** (`README.md` "Releases"): a tagged version here
-  becomes a GitHub Release asset on `ossger/photocull-releases`, linked from
-  `photocull.infrarg.com` (a separate project — read-only against this repo's docs,
-  never writes here). Bump the version in all four places and add a `CHANGELOG.md`
-  entry before tagging; never rebuild a version number in place once it's tagged.
-- When the Phase 4 cloud-vision option gets its key-storage story, keys are **T4** —
-  never a committed file, never a default-on dependency.
+- **This repo is public.** Everything committed must be public-safe: no personal
+  photos, no library paths, no API keys. `_RawIngest/` and `PhotoLibrary/` are
+  git-ignored and must stay that way.
+- **Releases:** a tagged version becomes a GitHub Release asset on
+  `ossger/photocull-releases`, linked from `photocull.infrarg.com`. Bump the
+  version in all four places and add a `CHANGELOG.md` entry before tagging; never
+  rebuild a version number in place once it's tagged.
+- When the cloud-vision option gets its key-storage story, keys live in the OS
+  keychain / user settings — never a committed file, never a default-on dependency.
+- Maintainer-local operating notes (if present) live in the git-ignored
+  `CLAUDE.local.md`.

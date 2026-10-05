@@ -2,10 +2,41 @@
 
 A cross-platform desktop culling app for photographers. Inspired by Narrative Select: groups a shoot into **scenes**, scores each frame for **focus, eyes-open, exposure, and aesthetic**, then exports picks as **XMP sidecars** that Lightroom / Capture One pick up.
 
-> Status: Phase 3 baseline, Phase 4 underway — RAW pipeline, scene grouping,
-> local scoring (focus / eyes / exposure / aesthetic / faces), crop, and XMP
-> export all work. Runs on **Windows and macOS**. See `apps/` for the Electron
-> shell and Python sidecar.
+**Download:** signed macOS builds at **[photocull.infrarg.com](https://photocull.infrarg.com)**
+(Windows build coming). Or build it from source — see [Dev setup](#dev-setup).
+
+> Status: actively developed. RAW pipeline, scene grouping, local scoring
+> (focus / eyes / exposure / aesthetic / faces), compare, crop, and XMP export
+> all work. Runs on **Windows and macOS**. Everything runs **locally** — no
+> account, no upload, your photos never leave your machine.
+
+## Features
+
+- **Scenes** — bursts and near-duplicates grouped automatically, so you pick the
+  best of each moment instead of scrolling thousands of frames.
+- **Scores** — focus, eyes-open, exposure, and an aesthetic heuristic per frame,
+  plus a face/eye overlay and an eye-zoom loupe to judge sharpness fast.
+- **Compare** — up to four frames side by side, each zoomable and pannable
+  (or zoom-synced), seeded with the next four frames automatically.
+- **Filmstrip** — resizable, or popped out into its own window.
+- **Crop** — aspect presets, defaulting to the original ratio.
+- **Export** — picks, stars, color labels, and crops written as **XMP sidecars**
+  that Lightroom and Capture One read. Your originals are never modified.
+- **Import / Sort into events** — tidy card dumps into dated folders before culling.
+
+### Hotkeys
+
+| Key | Action |
+|---|---|
+| ← / → · ↑ / ↓ | next/previous frame · next/previous scene |
+| P · X · U | pick · reject · unset |
+| 0–5 | star rating |
+| G · C · R | grid · compare · crop |
+| E · F | eye-zoom loupe · face/eye overlay |
+| L | picks-only filter (in compare: sync zoom) |
+| / · M | filter panel · shoot-wide matches |
+| Space / double-click | fit ↔ 1:1 |
+| Esc | leave crop → compare → selection |
 
 ## Architecture
 
@@ -53,12 +84,13 @@ run, so the first launch needs an internet connection.
 
 ## Releases
 
-Public installers are built here, tagged (`git tag vX.Y.Z`), and published as
-assets on the separate `ossger/photocull-releases` repo — this repo stays private
-and source-free downloads never live here. The public download page and install
-instructions are at `photocull.infrarg.com`, sourced from that project.
+Installers are published as GitHub Release assets on
+[`ossger/photocull-releases`](https://github.com/ossger/photocull-releases)
+(kept separate so multi-hundred-MB binaries stay out of this repo's history),
+and linked from [photocull.infrarg.com](https://photocull.infrarg.com).
+`CHANGELOG.md` lists what changed in each version.
 
-Before tagging a public release, bump the version in all four places together
+Maintainers: before tagging, bump the version in all four places together
 (`package.json`, `apps/shell/package.json`, `apps/worker/pyproject.toml`,
 `apps/worker/photocull/__init__.py`) and add a `CHANGELOG.md` entry — never reuse
 a version number for different bytes once it's been published.
@@ -145,3 +177,22 @@ shoot, it is closed first.
   post, an Immich upload, and the family's TV screens (Google TV + Fire TV).
   A shared Immich or Google Photos album is the likely single source for those
   screens.
+
+See [`BACKLOG.md`](BACKLOG.md) for the running list of what's next, and the
+[issue tracker](https://github.com/ossger/Photography/issues) to request a feature
+or report a bug.
+
+## Support PhotoCull
+
+PhotoCull is free and open source. If it saves you time on a shoot, you can
+support its development:
+
+- **GitHub Sponsors** — the **Sponsor** button at the top of this repo
+- **Ko-fi** / **Buy Me a Coffee** — links in the Sponsor button as well
+
+Bug reports, feature ideas, and pull requests are just as welcome — see
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+## License
+
+[MIT](LICENSE) © 2026 Ross Goeringer
