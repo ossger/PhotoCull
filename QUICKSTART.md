@@ -37,7 +37,7 @@ npm install
 > "electron.exe" | Set-Content node_modules/electron/path.txt
 > ```
 >
-> If it keeps recurring, add `~/Projects/Photography` to Defender exclusions
+> If it keeps recurring, add `~/Projects/PhotoCull` to Defender exclusions
 > (Settings → Virus & threat protection → Manage settings → Exclusions).
 
 ### 3. Install the Python sidecar

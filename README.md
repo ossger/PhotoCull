@@ -179,7 +179,7 @@ shoot, it is closed first.
   screens.
 
 See [`BACKLOG.md`](BACKLOG.md) for the running list of what's next, and the
-[issue tracker](https://github.com/ossger/Photography/issues) to request a feature
+[issue tracker](https://github.com/ossger/PhotoCull/issues) to request a feature
 or report a bug.
 
 ## Support PhotoCull

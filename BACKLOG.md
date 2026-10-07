@@ -6,26 +6,26 @@ ships, move it to **Done** with the date and add a line to `CHANGELOG.md`.
 
 ## Now
 
-- [#1](https://github.com/ossger/Photography/issues/1) **Notarize and publish the Intel (x64) macOS build.** It's signed but blocked
+- [#1](https://github.com/ossger/PhotoCull/issues/1) **Notarize and publish the Intel (x64) macOS build.** It's signed but blocked
   on moving the notarization credential into a keychain profile.
-- [#2](https://github.com/ossger/Photography/issues/2) **Rebuild arm64 for older macOS.** The published `v0.3.1` arm64 build
+- [#2](https://github.com/ossger/PhotoCull/issues/2) **Rebuild arm64 for older macOS.** The published `v0.3.1` arm64 build
   effectively requires macOS 26, so set `mac.minimumSystemVersion` to the real
   floor once it's rebuilt.
-- [#3](https://github.com/ossger/Photography/issues/3) **Fix the shell lint gate.** `npm --workspace apps/shell run lint` calls
+- [#3](https://github.com/ossger/PhotoCull/issues/3) **Fix the shell lint gate.** `npm --workspace apps/shell run lint` calls
   `eslint`, but there's no ESLint dependency or config in the repo.
 
 ## Next
 
-- [#4](https://github.com/ossger/Photography/issues/4) **Windows x64 build:** signed installer and release.
-- [#5](https://github.com/ossger/Photography/issues/5) **Cloud vision scoring (optional, opt-in):** decide where an API key lives
+- [#4](https://github.com/ossger/PhotoCull/issues/4) **Windows x64 build:** signed installer and release.
+- [#5](https://github.com/ossger/PhotoCull/issues/5) **Cloud vision scoring (optional, opt-in):** decide where an API key lives
   (keychain / user settings), then wire up Claude / Google Vision scoring.
-- [#6](https://github.com/ossger/Photography/issues/6) **CLIP smart scenes:** pick a model file and group scenes semantically.
-- [#7](https://github.com/ossger/Photography/issues/7) **Pop-out filmstrip performance on very large shoots.** A rating change re-sends
+- [#6](https://github.com/ossger/PhotoCull/issues/6) **CLIP smart scenes:** pick a model file and group scenes semantically.
+- [#7](https://github.com/ossger/PhotoCull/issues/7) **Pop-out filmstrip performance on very large shoots.** A rating change re-sends
   the whole image list to the pop-out, so measure it and send diffs if needed.
 
 ## Ideas
 
-- [#8](https://github.com/ossger/Photography/issues/8) **Post-cull pipeline:** hand picks to Lightroom / Photoshop, then share edited
+- [#8](https://github.com/ossger/PhotoCull/issues/8) **Post-cull pipeline:** hand picks to Lightroom / Photoshop, then share edited
   exports (Instagram, Immich, a shared album for TV screens).
 - Google Photos / iCloud as Import sources.
 

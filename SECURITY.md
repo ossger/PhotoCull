@@ -7,7 +7,7 @@ uploaded anywhere.
 ## Reporting a vulnerability
 
 Please report security issues **privately** through GitHub's
-[private vulnerability reporting](https://github.com/ossger/Photography/security/advisories/new)
+[private vulnerability reporting](https://github.com/ossger/PhotoCull/security/advisories/new)
 rather than a public issue. You'll get an acknowledgement within a few days.
 
 Only the latest release is supported with fixes.
