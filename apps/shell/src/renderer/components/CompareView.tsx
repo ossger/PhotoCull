@@ -1,3 +1,4 @@
+import { showImageMenu } from "../contextMenu";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import type { CropRect, ImageRow } from "@shared/types";
@@ -92,6 +93,10 @@ function Cell({ image, syncZoom, activeIdRef, synced, onPublish, onOpenInLoupe }
       onMouseDownCapture={markActive}
       onWheel={zoom.onWheel}
       onMouseDown={zoom.onMouseDown}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        void showImageMenu(image.id);
+      }}
       onDoubleClick={zoom.onDoubleClick}
       className={`relative bg-bg overflow-hidden min-h-0 min-w-0 select-none border border-line ${cursor}`}
     >

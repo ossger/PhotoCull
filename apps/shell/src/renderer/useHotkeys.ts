@@ -97,11 +97,11 @@ export function useHotkeys() {
           e.preventDefault();
           break;
         case "ArrowDown":
-          moveScene(1);
+          moveScene(1, e.shiftKey);
           e.preventDefault();
           break;
         case "ArrowUp":
-          moveScene(-1);
+          moveScene(-1, e.shiftKey);
           e.preventDefault();
           break;
         case "a":

@@ -172,7 +172,7 @@ class Shoot:
     def list_scenes(self) -> list[dict[str, Any]]:
         cur = self.conn.execute(
             """
-            SELECT s.id, s.label, s.starts_at, s.ends_at, s.cover_image_id,
+            SELECT s.id, s.label, s.starts_at, s.ends_at, s.cover_image_id, s.manual,
                    (SELECT COUNT(*) FROM image i WHERE i.scene_id = s.id) AS image_count,
                    (SELECT thumb_path FROM image WHERE id = s.cover_image_id) AS cover_thumb,
                    (SELECT AVG(score_overall) FROM image WHERE scene_id = s.id) AS avg_score
@@ -182,9 +182,32 @@ class Shoot:
         )
         return [dict(r) for r in cur.fetchall()]
 
-    def regroup_scenes(self) -> int:
+    def regroup_scenes(self, force: bool = False) -> int:
         with self._lock:
-            return scenes_mod.regroup(self.conn)
+            return scenes_mod.regroup(self.conn, force=force)
+
+    # ---- manual scene edits ----
+
+    def merge_scenes(self, scene_ids: list[int]) -> int:
+        with self._lock:
+            return scenes_mod.merge_scenes(self.conn, scene_ids)
+
+    def split_scene(self, scene_id: int, at_image_id: int) -> int:
+        with self._lock:
+            return scenes_mod.split_scene(self.conn, scene_id, at_image_id)
+
+    def update_scene(
+        self, scene_id: int, label: str | None = None, cover_image_id: int | None = None
+    ) -> None:
+        with self._lock:
+            if label is not None:
+                scenes_mod.rename_scene(self.conn, scene_id, label)
+            if cover_image_id is not None:
+                scenes_mod.set_cover(self.conn, scene_id, cover_image_id)
+
+    def move_images_to_scene(self, image_ids: list[int], scene_id: int | None) -> int:
+        with self._lock:
+            return scenes_mod.move_images_to_scene(self.conn, image_ids, scene_id)
 
     # ---- export ----
 

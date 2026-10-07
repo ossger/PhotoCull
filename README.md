@@ -37,6 +37,22 @@ A cross-platform desktop culling app for photographers. Inspired by Narrative Se
 | / · M | filter panel · shoot-wide matches |
 | Space / double-click | fit ↔ 1:1 |
 | Esc | leave crop → compare → selection |
+| Shift + ↑ / ↓ | extend the scene selection |
+| Scroll / trackpad pinch | zoom (also while cropping) |
+| Space + drag · middle-drag | pan while cropping |
+| Z | fit ↔ 100% while cropping |
+
+### Selecting and right-click menus
+
+- **Scenes:** ⌘/Ctrl-click toggles a scene, Shift-click selects a range. The
+  filmstrip and grid then show all the selected scenes' frames together.
+- **Photos:** ⌘/Ctrl-click, Shift-click, or drag a marquee, as before.
+- **Right-click** a photo or scene for a menu that adapts to what's selected:
+  pick/reject/rating/color on the whole selection, compare, move to another
+  scene, export XMP for the selection, and for scenes merge, rename, and split
+  at a frame. Right-clicking something outside the selection selects it first.
+- Scene edits (merge, split, rename, cover, move) are kept when you re-ingest.
+  "Reset to automatic grouping" on a scene's menu discards them.
 
 ## Architecture
 

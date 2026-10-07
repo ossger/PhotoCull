@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
-import type { CropRect } from "@shared/types";
+import type { CropRect, MenuTemplateItem } from "@shared/types";
+import { panKeyState } from "../useZoomPan";
 
 /**
  * Lightroom-style crop overlay.
@@ -25,6 +26,11 @@ import type { CropRect } from "@shared/types";
 interface Props {
   imageBox: { left: number; top: number; width: number; height: number };
   imageAspect: number; // natural width / height
+  // The overlay owns the aspect state, so it publishes its right-click menu
+  // here for Loupe to open (see Loupe's onContextMenu).
+  menuRef: React.MutableRefObject<(() => void) | null>;
+  onToggleZoom: () => void;
+  zoomScale: number;
 }
 
 const ASPECT_PRESETS: Array<{ key: string; label: string; ratio: number | null }> = [
@@ -114,7 +120,7 @@ function initialAspectKey(draft: CropRect | null, imageAspect: number, hasSavedC
   return match?.key ?? "free";
 }
 
-export function CropOverlay({ imageBox, imageAspect }: Props) {
+export function CropOverlay({ imageBox, imageAspect, menuRef, onToggleZoom, zoomScale }: Props) {
   const draft = useStore((s) => s.cropDraft);
   const setDraft = useStore((s) => s.setCropDraft);
   const applyDraft = useStore((s) => s.applyCropDraft);
@@ -137,6 +143,32 @@ export function CropOverlay({ imageBox, imageAspect }: Props) {
   }, [aspectKey, imageAspect]);
 
   const dragRef = useRef<Drag | null>(null);
+
+  // Right-click menu while cropping: apply/cancel/reset, aspect presets, zoom.
+  menuRef.current = async () => {
+    const template: MenuTemplateItem[] = [
+      { id: "apply", label: "Apply crop", shortcut: "Enter" },
+      { id: "cancel", label: "Cancel", shortcut: "Escape" },
+      { id: "reset", label: "Clear saved crop", enabled: hasSavedCrop, shortcut: "Shift+R" },
+      { type: "separator" },
+      {
+        label: "Aspect",
+        submenu: ASPECT_PRESETS.map((p) => ({
+          id: `aspect:${p.key}`,
+          label: p.label,
+          checked: p.key === aspectKey,
+        })),
+      },
+      { id: "zoom", label: zoomScale > 1.01 ? "Zoom to fit" : "Zoom to 100%", shortcut: "Z" },
+    ];
+    const choice = await window.photocull.popupMenu(template);
+    if (!choice) return;
+    if (choice.startsWith("aspect:")) setAspectKey(choice.slice(7));
+    else if (choice === "apply") await applyDraft();
+    else if (choice === "cancel") exitCrop();
+    else if (choice === "reset") await clearCrop();
+    else if (choice === "zoom") onToggleZoom();
+  };
 
   // Enforce the aspect lock at mount (so the first draft you see is already
   // locked), whenever the ratio changes, and whenever a fresh draft appears
@@ -229,7 +261,8 @@ export function CropOverlay({ imageBox, imageAspect }: Props) {
   };
 
   const onDragStart = (handle: Handle) => (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
+    // Space held = pan gesture (handled by useZoomPan), not a crop drag.
+    if (e.button !== 0 || panKeyState.space) return;
     e.preventDefault();
     e.stopPropagation();
     dragRef.current = {
@@ -238,6 +271,15 @@ export function CropOverlay({ imageBox, imageAspect }: Props) {
       startMouseY: e.clientY,
       startRect: draft,
     };
+  };
+
+  // Zoomed in, the crop box can extend past (or sit wholly outside) the
+  // container; keep the dimming rects from going negative.
+  const dim = {
+    top: Math.max(0, px.top),
+    bottom: Math.max(0, px.top + px.height),
+    left: Math.max(0, px.left),
+    right: Math.max(0, px.left + px.width),
   };
 
   const handleSize = 12;
@@ -256,10 +298,10 @@ export function CropOverlay({ imageBox, imageAspect }: Props) {
     <>
       {/* Dimming overlay outside the crop rect (four dark rectangles) */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute bg-black/60" style={{ left: 0, top: 0, right: 0, height: px.top }} />
-        <div className="absolute bg-black/60" style={{ left: 0, top: px.top + px.height, right: 0, bottom: 0 }} />
-        <div className="absolute bg-black/60" style={{ left: 0, top: px.top, width: px.left, height: px.height }} />
-        <div className="absolute bg-black/60" style={{ left: px.left + px.width, top: px.top, right: 0, height: px.height }} />
+        <div className="absolute bg-black/60" style={{ left: 0, top: 0, right: 0, height: dim.top }} />
+        <div className="absolute bg-black/60" style={{ left: 0, top: dim.bottom, right: 0, bottom: 0 }} />
+        <div className="absolute bg-black/60" style={{ left: 0, top: dim.top, width: dim.left, height: Math.max(0, dim.bottom - dim.top) }} />
+        <div className="absolute bg-black/60" style={{ left: dim.right, top: dim.top, right: 0, height: Math.max(0, dim.bottom - dim.top) }} />
       </div>
 
       {/* Crop rect — drag inside to move, drag handles to resize */}
@@ -287,6 +329,12 @@ export function CropOverlay({ imageBox, imageAspect }: Props) {
 
       {/* Floating toolbar with aspect picker + apply / cancel */}
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-panel/95 border border-line rounded-md px-3 py-2 flex items-center gap-3 text-sm shadow-lg">
+        <span
+          className="text-muted text-[10px] hidden md:inline"
+          title="Scroll or pinch to zoom. Hold Space and drag (or middle-drag) to pan. Z toggles fit / 100%."
+        >
+          Scroll/pinch zoom · Space+drag pan
+        </span>
         <label className="text-muted text-xs uppercase tracking-wide">Aspect</label>
         <select
           value={aspectKey}

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CropRect, FaceDetection } from "@shared/types";
 import { useStore } from "../store";
+import { showImageMenu } from "../contextMenu";
 import { useZoomPan } from "../useZoomPan";
 import { CropOverlay } from "./CropOverlay";
 import { CroppedImage } from "./CroppedImage";
@@ -138,6 +139,8 @@ export function Loupe() {
   const [fullLoaded, setFullLoaded] = useState(false);
   const fullPreloaderRef = useRef<HTMLImageElement>(null);
   const containerInnerRef = useRef<HTMLDivElement>(null);
+  // CropOverlay registers its right-click menu here (it owns the aspect state).
+  const cropMenuRef = useRef<(() => void) | null>(null);
 
   // The saved crop, if any — independent of crop *mode*. Crop mode always
   // shows the full frame (so CropOverlay can re-edit the saved rect against
@@ -176,7 +179,9 @@ export function Loupe() {
     effectiveCrop?.bottom,
   ]);
 
-  const zoom = useZoomPan(displayNatural);
+  // In crop mode a plain left-drag belongs to the crop handles, so panning
+  // moves to Space+drag / middle-drag; wheel and pinch zoom work everywhere.
+  const zoom = useZoomPan(displayNatural, { panMode: cropMode ? "modified" : "left" });
 
   // Reset zoom + full-loaded + crop draft state whenever the selected image changes.
   useEffect(() => {
@@ -185,12 +190,20 @@ export function Loupe() {
     setFullLoaded(false);
   }, [image?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Space toggles fit / 1:1 — disabled in crop mode.
+  // Space toggles fit / 1:1. In crop mode Space is the pan modifier instead
+  // (just keep it from scrolling the page) and Z takes over the toggle.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
-      if (cropMode) return;
+      if (cropMode) {
+        if (e.key === " " || e.code === "Space") e.preventDefault();
+        else if ((e.key === "z" || e.key === "Z") && !e.metaKey && !e.ctrlKey) {
+          e.preventDefault();
+          zoom.toggleOneToOne();
+        }
+        return;
+      }
       if (e.key === " " || e.code === "Space") {
         e.preventDefault();
         zoom.toggleOneToOne();
@@ -209,7 +222,8 @@ export function Loupe() {
     [image],
   );
 
-  // When in crop mode, force fit-scale so the crop math has a stable image rect.
+  // Start and end crop mode at fit-scale: the seeded crop box is fully
+  // on-screen, and the normal view is restored on apply / cancel.
   useEffect(() => {
     if (cropMode) zoom.reset();
   }, [cropMode]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -292,9 +306,11 @@ export function Loupe() {
   }, [faces, cropRect?.left, cropRect?.top, cropRect?.right, cropRect?.bottom]);
 
   // Track the displayed image's bounding box (the crop's clipping box, when
-  // one is showing) for the crop / faces overlays. zoom.boxRef is exactly
-  // that box — see useZoomPan — so this stays correct whether or not a crop
-  // is active without needing its own crop-aware geometry.
+  // one is showing) for the crop / faces overlays, in the *outer* container's
+  // untransformed coordinates (the overlays are siblings of the zoomed inner
+  // div). zoom.boxRef is exactly that box — see useZoomPan — and its screen
+  // rect already includes the zoom/pan transform, so the crop overlay tracks
+  // the picture while zooming.
   useLayoutEffect(() => {
     if ((!cropMode && !facesOverlayActive) || !zoom.boxRef.current || !containerInnerRef.current) {
       setImageBox(null);
@@ -302,7 +318,7 @@ export function Loupe() {
     }
     const recompute = () => {
       const boxEl = zoom.boxRef.current;
-      const wrap = containerInnerRef.current;
+      const wrap = zoom.containerRef.current;
       if (!boxEl || !wrap) return;
       const boxRect = boxEl.getBoundingClientRect();
       const wrapRect = wrap.getBoundingClientRect();
@@ -318,7 +334,16 @@ export function Loupe() {
     if (zoom.boxRef.current) ro.observe(zoom.boxRef.current);
     if (containerInnerRef.current) ro.observe(containerInnerRef.current);
     return () => ro.disconnect();
-  }, [cropMode, facesOverlayActive, fullLoaded, naturalSize, image?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    cropMode,
+    facesOverlayActive,
+    fullLoaded,
+    naturalSize,
+    image?.id,
+    zoom.transform.scale,
+    zoom.transform.tx,
+    zoom.transform.ty,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!image) {
     return (
@@ -345,20 +370,25 @@ export function Loupe() {
     <div className="flex-1 min-h-0 flex flex-col bg-bg">
       <div
         ref={zoom.containerRef}
-        onWheel={cropMode ? undefined : zoom.onWheel}
-        onMouseDown={cropMode ? undefined : zoom.onMouseDown}
+        onWheel={zoom.onWheel}
+        onMouseDown={zoom.onMouseDown}
         onDoubleClick={cropMode ? undefined : zoom.onDoubleClick}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          if (cropMode) cropMenuRef.current?.();
+          else void showImageMenu(image.id);
+        }}
         className={`flex-1 min-h-0 relative overflow-hidden select-none ${cursor}`}
       >
         <div
           ref={containerInnerRef}
           className="absolute inset-0 flex items-center justify-center"
           style={{
-            transform: cropMode
-              ? "none"
-              : `translate(${zoom.transform.tx}px, ${zoom.transform.ty}px) scale(${zoom.transform.scale})`,
+            transform: `translate(${zoom.transform.tx}px, ${zoom.transform.ty}px) scale(${zoom.transform.scale})`,
             transformOrigin: "center center",
-            transition: zoom.transform.scale === 1 || cropMode ? "transform 120ms ease-out" : "none",
+            // No easing in crop mode: the overlay measures the image box
+            // straight after each transform change and must see the final rect.
+            transition: zoom.transform.scale === 1 && !cropMode ? "transform 120ms ease-out" : "none",
             willChange: "transform",
           }}
         >
@@ -393,7 +423,13 @@ export function Loupe() {
         {/* Mounted only once the natural size is known, so the overlay's
             aspect presets (default: Original) see the real frame aspect. */}
         {cropMode && imageBox && naturalSize && (
-          <CropOverlay imageBox={imageBox} imageAspect={naturalAspect} />
+          <CropOverlay
+            imageBox={imageBox}
+            imageAspect={naturalAspect}
+            menuRef={cropMenuRef}
+            onToggleZoom={zoom.toggleOneToOne}
+            zoomScale={zoom.transform.scale}
+          />
         )}
 
         {facesOverlayActive && imageBox && (

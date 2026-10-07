@@ -1,5 +1,6 @@
 import { memo } from "react";
 import type { ImageRow } from "@shared/types";
+import { showImageMenu } from "../contextMenu";
 
 interface Props {
   image: ImageRow;
@@ -56,6 +57,10 @@ export const Thumbnail = memo(function Thumbnail({
     <button
       type="button"
       onClick={onClick}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        void showImageMenu(image.id);
+      }}
       draggable={false}
       onPointerDown={(e) => e.preventDefault()}
       className={`relative group block w-full h-full overflow-hidden rounded-md

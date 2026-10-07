@@ -10,6 +10,7 @@ export function Toolbar() {
   const shootRoot = useStore((s) => s.shootRoot);
   const progress = useStore((s) => s.progress);
   const error = useStore((s) => s.error);
+  const notice = useStore((s) => s.notice);
   const images = useStore((s) => s.images);
   const sortMode = useStore((s) => s.sortMode);
   const setSortMode = useStore((s) => s.setSortMode);
@@ -82,6 +83,7 @@ export function Toolbar() {
 
   const status = (() => {
     if (exportStatus) return <span className="text-muted">{exportStatus}</span>;
+    if (notice) return <span className="text-muted">{notice}</span>;
     if (error) return <span className="text-reject">{error}</span>;
     if (progress.state === "running") {
       const pct =

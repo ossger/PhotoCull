@@ -19,6 +19,7 @@ const SYNC_KEYS = [
   "images",
   "scenes",
   "selectedSceneId",
+  "selectedSceneIds",
   "selectedImageId",
   "selectedIds",
   "rangeAnchorId",
@@ -37,6 +38,9 @@ type SyncKey = (typeof SYNC_KEYS)[number];
 
 const FORWARDED_ACTIONS: readonly FilmstripActionName[] = [
   "selectImage",
+  "selectScene",
+  "toggleScene",
+  "selectSceneRange",
   "toggleSelect",
   "selectRange",
   "extendRange",

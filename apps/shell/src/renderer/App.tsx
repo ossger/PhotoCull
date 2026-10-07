@@ -44,8 +44,9 @@ function HotkeyHint() {
     <div className="px-3 py-1.5 text-xs text-muted border-t border-line bg-panel2 flex gap-3 flex-wrap">
       {cropMode ? (
         <>
-          <Key>Drag</Key> rect/handles · <Key>Enter</Key> apply ·{" "}
-          <Key>Esc</Key> cancel · <Key>Shift+R</Key> clear crop
+          <Key>Drag</Key> rect/handles · <Key>Scroll</Key>/pinch zoom ·{" "}
+          <Key>Space+drag</Key> pan · <Key>Z</Key> fit/100% · <Key>Enter</Key> apply ·{" "}
+          <Key>Esc</Key> cancel · <Key>Shift+R</Key> clear crop · <Key>Right-click</Key> menu
         </>
       ) : compareMode ? (
         <>
@@ -55,8 +56,9 @@ function HotkeyHint() {
         </>
       ) : (
         <>
-          <Key>←/→</Key> frame · <Key>↑/↓</Key> scene ·{" "}
+          <Key>←/→</Key> frame · <Key>↑/↓</Key> scene (<Key>Shift</Key> extends) ·{" "}
           <Key>⌘/Ctrl+click</Key> toggle · <Key>Shift+click</Key> range ·{" "}
+          <Key>Right-click</Key> menu ·{" "}
           <Key>Drag</Key> marquee · <Key>⌘/Ctrl+A</Key> select all ·{" "}
           <Key>P</Key> pick · <Key>X</Key> reject · <Key>U</Key> unset ·{" "}
           <Key>0-5</Key> stars · <Key>G</Key> grid · <Key>C</Key> compare ·{" "}

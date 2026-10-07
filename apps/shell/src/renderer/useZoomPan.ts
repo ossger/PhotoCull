@@ -21,6 +21,20 @@ export interface SharedTransform {
 const MIN_SCALE = 1;       // 1 = fit-to-container
 const MAX_SCALE = 16;      // 16x is plenty for pixel-peeping
 const WHEEL_SENSITIVITY = 0.0018;
+// A macOS trackpad pinch arrives as a wheel event with ctrlKey set and small
+// deltaY steps, so it needs a much larger multiplier to feel natural.
+const PINCH_SENSITIVITY = 0.012;
+
+// True while Space is held — the "pan" modifier in crop mode, where a plain
+// left-drag belongs to the crop handles. Module-level so CropOverlay can tell
+// a pan gesture from a crop drag without prop-drilling.
+export const panKeyState = { space: false };
+
+export interface ZoomPanOptions {
+  // "left" (default): left-drag pans. "modified": only Space+left-drag or
+  // middle-drag pans, leaving a plain left-drag free (crop mode).
+  panMode?: "left" | "modified";
+}
 
 interface UseZoomPanResult {
   containerRef: React.RefObject<HTMLDivElement>;
@@ -53,7 +67,11 @@ interface UseZoomPanResult {
  * "1:1" means one image pixel per device pixel — what photographers call
  * 100% — computed live from the image's natural width and the container.
  */
-export function useZoomPan(naturalSize: { w: number; h: number } | null): UseZoomPanResult {
+export function useZoomPan(
+  naturalSize: { w: number; h: number } | null,
+  options: ZoomPanOptions = {},
+): UseZoomPanResult {
+  const panMode = options.panMode ?? "left";
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -184,7 +202,7 @@ export function useZoomPan(naturalSize: { w: number; h: number } | null): UseZoo
       const cursorY = e.clientY - rect.top - rect.height / 2;
       setTransform((cur) => {
         // Multiplicative zoom so each wheel notch has consistent feel.
-        const factor = Math.exp(-e.deltaY * WHEEL_SENSITIVITY);
+        const factor = Math.exp(-e.deltaY * (e.ctrlKey ? PINCH_SENSITIVITY : WHEEL_SENSITIVITY));
         const nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, cur.scale * factor));
         if (nextScale === cur.scale) return cur;
         // Keep the image point under the cursor stationary.
@@ -200,15 +218,49 @@ export function useZoomPan(naturalSize: { w: number; h: number } | null): UseZoo
     [clamp],
   );
 
-  const onMouseDown: React.MouseEventHandler<HTMLDivElement> = useCallback((e) => {
-    if (e.button !== 0) return;
-    dragRef.current = {
-      x: e.clientX,
-      y: e.clientY,
-      tx: transform.tx,
-      ty: transform.ty,
+  const onMouseDown: React.MouseEventHandler<HTMLDivElement> = useCallback(
+    (e) => {
+      if (panMode === "modified") {
+        const middle = e.button === 1;
+        if (!middle && !(e.button === 0 && panKeyState.space)) return;
+        e.preventDefault(); // no middle-click autoscroll / text selection
+      } else if (e.button !== 0) {
+        return;
+      }
+      dragRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        tx: transform.tx,
+        ty: transform.ty,
+      };
+    },
+    [transform.tx, transform.ty, panMode],
+  );
+
+  // Track the Space modifier (see panKeyState).
+  useEffect(() => {
+    const isTyping = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT");
     };
-  }, [transform.tx, transform.ty]);
+    const down = (e: KeyboardEvent) => {
+      if ((e.key === " " || e.code === "Space") && !isTyping(e)) panKeyState.space = true;
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.key === " " || e.code === "Space") panKeyState.space = false;
+    };
+    const blur = () => {
+      panKeyState.space = false;
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", blur);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
+    };
+  }, []);
 
   // Mouse-move + up are bound at window level so the drag survives the cursor
   // briefly leaving the loupe.

@@ -70,6 +70,20 @@ export interface SceneRow {
   image_count: number;
   cover_thumb: string | null;
   avg_score: number | null;
+  // 1 = hand-edited (survives regroup); 0 = automatic.
+  manual: number;
+}
+
+// Serialisable native-menu template (see main.ts "popupMenu").
+export interface MenuTemplateItem {
+  id?: string;
+  label?: string;
+  type?: "separator";
+  enabled?: boolean;
+  checked?: boolean;
+  // Electron accelerator string shown beside the label (display only).
+  shortcut?: string;
+  submenu?: MenuTemplateItem[];
 }
 
 export interface OpenShootResult {
@@ -165,6 +179,9 @@ export type StoreSyncSnapshot = Record<string, unknown>;
 // Store actions the pop-out is allowed to invoke on the main window.
 export type FilmstripActionName =
   | "selectImage"
+  | "selectScene"
+  | "toggleScene"
+  | "selectSceneRange"
   | "toggleSelect"
   | "selectRange"
   | "extendRange"
@@ -196,7 +213,18 @@ export interface PhotoCullBridge {
   shootProgress(): Promise<ShootProgress>;
   listImages(): Promise<ImageRow[]>;
   listScenes(): Promise<SceneRow[]>;
-  regroupScenes(): Promise<{ scene_count: number }>;
+  // force=true also discards hand-edited scenes (reset to automatic grouping).
+  regroupScenes(force?: boolean): Promise<{ scene_count: number }>;
+  mergeScenes(sceneIds: number[]): Promise<{ scene_id: number }>;
+  splitScene(sceneId: number, atImageId: number): Promise<{ scene_id: number }>;
+  updateScene(
+    sceneId: number,
+    patch: { label?: string; cover_image_id?: number },
+  ): Promise<{ scene_id: number }>;
+  // sceneId null = move into a brand-new scene.
+  moveImagesToScene(imageIds: number[], sceneId: number | null): Promise<{ scene_id: number }>;
+  // Pop a native context menu; resolves with the clicked item id, or null.
+  popupMenu(template: MenuTemplateItem[]): Promise<string | null>;
   exportXmp(
     onlyPicked: boolean,
     imageIds?: number[],

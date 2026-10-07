@@ -52,7 +52,14 @@ interface Store {
   shootRoot: string | null;
   images: ImageRow[];
   scenes: SceneRow[];
+  // The "primary" scene (last clicked). Always a member of selectedSceneIds
+  // when that is non-empty.
   selectedSceneId: number | null;
+  // Multi-select in the scene sidebar. The filmstrip/grid show the union of
+  // these scenes' frames.
+  selectedSceneIds: number[];
+  // Pivot for shift-click range selection in the scene sidebar.
+  sceneAnchorId: number | null;
   // The "primary" image — what the loupe/crop/faces overlay shows. Always a
   // member of selectedIds when selectedIds is non-empty.
   selectedImageId: number | null;
@@ -89,6 +96,10 @@ interface Store {
   progress: ShootProgress;
   loading: boolean;
   error: string | null;
+  // Transient status line (menu actions: export results, merge, …). Auto-clears.
+  notice: string | null;
+  // Scene whose card is showing the inline rename input (UI-only).
+  renamingSceneId: number | null;
 
   openFolder: () => Promise<void>;
   // Open a known folder as the shoot (no picker) — e.g. a freshly sorted event.
@@ -100,12 +111,18 @@ interface Store {
 
   selectImage: (id: number | null) => void;
   selectScene: (id: number | null) => void;
+  // Scene multi-select (cmd/ctrl-click, shift-click, shift+arrow, right-click).
+  toggleScene: (id: number) => void;
+  selectSceneRange: (id: number) => void;
+  setSceneSelection: (ids: number[], primary?: number | null) => void;
+  selectAllScenes: () => void;
   // Move selection by +/- delta within the current scene's images. When
   // `extend` is set (shift+arrow), grows the range from the anchor instead
   // of replacing the selection.
   moveImage: (delta: number, extend?: boolean) => void;
   // Move selection between scenes (in order); selects the first image of the new scene
-  moveScene: (delta: number) => void;
+  // When `extend` is set (shift+arrow) the scene range grows from the anchor.
+  moveScene: (delta: number, extend?: boolean) => void;
 
   // Multi-select (cmd/ctrl-click, shift-click, shift+cmd-click, marquee drag).
   toggleSelect: (id: number) => void;
@@ -142,8 +159,20 @@ interface Store {
 
   setPick: (id: number, pick: -1 | 0 | 1) => Promise<void>;
   setStars: (id: number, stars: number) => Promise<void>;
+  setColorMany: (ids: number[], color: string | null) => Promise<void>;
   setPickMany: (ids: number[], pick: -1 | 0 | 1) => Promise<void>;
   setStarsMany: (ids: number[], stars: number) => Promise<void>;
+
+  // Scene editing (hand edits survive re-ingest — see worker scenes.py).
+  mergeScenes: (sceneIds: number[]) => Promise<void>;
+  splitSceneAt: (imageId: number) => Promise<void>;
+  renameScene: (sceneId: number, label: string) => Promise<void>;
+  setSceneCover: (sceneId: number, imageId: number) => Promise<void>;
+  moveImagesToScene: (imageIds: number[], sceneId: number | null) => Promise<void>;
+  resetSceneGrouping: () => Promise<void>;
+  setRenamingScene: (id: number | null) => void;
+  exportImageIds: (ids: number[]) => Promise<void>;
+  showNotice: (msg: string) => void;
 }
 
 function sortByMode(images: ImageRow[], mode: SortMode): ImageRow[] {
@@ -189,11 +218,13 @@ function computeVisibleScenes(
 function visibleImageIds(
   images: ImageRow[],
   scope: ViewScope,
-  sceneId: number | null,
+  sceneId: number | readonly number[] | null,
   mode: SortMode,
   filters: FilterState,
 ): number[] {
-  const base = scope === "matches" ? images : images.filter((i) => i.scene_id === sceneId);
+  const wanted = sceneId == null ? [] : typeof sceneId === "number" ? [sceneId] : sceneId;
+  const base =
+    scope === "matches" ? images : images.filter((i) => i.scene_id != null && wanted.includes(i.scene_id));
   return sortByMode(filterImages(base, images, filters), mode).map((i) => i.id);
 }
 
@@ -220,6 +251,22 @@ function pruneSelection(
   return fallback != null ? [fallback] : [];
 }
 
+function sameIds(a: readonly number[], b: readonly number[]): boolean {
+  return a.length === b.length && a.every((x) => b.includes(x));
+}
+
+// Keep only still-visible scenes in the scene multi-selection, always
+// including the primary; falls back to just the primary.
+function repairSceneSelection(
+  selected: readonly number[],
+  visible: readonly SceneRow[],
+  primary: number | null,
+): number[] {
+  const kept = selected.filter((id) => visible.some((sc) => sc.id === id));
+  if (primary != null && !kept.includes(primary)) kept.push(primary);
+  return kept.length > 0 ? kept : primary != null ? [primary] : [];
+}
+
 // Shared selection-repair after any change to filters or viewScope:
 // re-derive the visible scene, re-derive the visible image ids within it,
 // prune the multi-selection down to what's still visible, and fix the range
@@ -231,7 +278,14 @@ function applyFilterChange(
   partial: { filters?: FilterState; viewScope?: ViewScope },
 ): Pick<
   Store,
-  "filters" | "viewScope" | "selectedSceneId" | "selectedImageId" | "selectedIds" | "rangeAnchorId"
+  | "filters"
+  | "viewScope"
+  | "selectedSceneId"
+  | "selectedSceneIds"
+  | "sceneAnchorId"
+  | "selectedImageId"
+  | "selectedIds"
+  | "rangeAnchorId"
 > {
   const filters = partial.filters ?? s.filters;
   const viewScope = partial.viewScope ?? s.viewScope;
@@ -240,8 +294,10 @@ function applyFilterChange(
     s.selectedSceneId != null && visible.some((sc) => sc.id === s.selectedSceneId)
       ? s.selectedSceneId
       : (visible[0]?.id ?? null);
-  const ids = visibleImageIds(s.images, viewScope, selectedSceneId, s.sortMode, filters);
-  const sameScene = selectedSceneId === s.selectedSceneId && viewScope === s.viewScope;
+  const selectedSceneIds = repairSceneSelection(s.selectedSceneIds, visible, selectedSceneId);
+  const ids = visibleImageIds(s.images, viewScope, selectedSceneIds, s.sortMode, filters);
+  const sameScene =
+    sameIds(selectedSceneIds, s.selectedSceneIds) && viewScope === s.viewScope;
   const selectedImageId =
     sameScene && s.selectedImageId != null && ids.includes(s.selectedImageId)
       ? s.selectedImageId
@@ -255,7 +311,20 @@ function applyFilterChange(
     sameScene && s.rangeAnchorId != null && ids.includes(s.rangeAnchorId)
       ? s.rangeAnchorId
       : selectedImageId;
-  return { filters, viewScope, selectedSceneId, selectedImageId, selectedIds, rangeAnchorId };
+  const sceneAnchorId =
+    s.sceneAnchorId != null && selectedSceneIds.includes(s.sceneAnchorId)
+      ? s.sceneAnchorId
+      : selectedSceneId;
+  return {
+    filters,
+    viewScope,
+    selectedSceneId,
+    selectedSceneIds,
+    sceneAnchorId,
+    selectedImageId,
+    selectedIds,
+    rangeAnchorId,
+  };
 }
 
 export const useStore = create<Store>((set, get) => ({
@@ -263,6 +332,8 @@ export const useStore = create<Store>((set, get) => ({
   images: [],
   scenes: [],
   selectedSceneId: null,
+  selectedSceneIds: [],
+  sceneAnchorId: null,
   selectedImageId: null,
   selectedIds: [],
   rangeAnchorId: null,
@@ -282,6 +353,8 @@ export const useStore = create<Store>((set, get) => ({
   progress: { state: "idle", done: 0, total: 0, current: null },
   loading: false,
   error: null,
+  notice: null,
+  renamingSceneId: null,
 
   async openFolder() {
     set({ error: null });
@@ -296,6 +369,8 @@ export const useStore = create<Store>((set, get) => ({
       images: [],
       scenes: [],
       selectedSceneId: null,
+      selectedSceneIds: [],
+      sceneAnchorId: null,
       selectedImageId: null,
       selectedIds: [],
       rangeAnchorId: null,
@@ -312,6 +387,8 @@ export const useStore = create<Store>((set, get) => ({
       images: [],
       scenes: [],
       selectedSceneId: null,
+      selectedSceneIds: [],
+      sceneAnchorId: null,
       selectedImageId: null,
       selectedIds: [],
       rangeAnchorId: null,
@@ -343,12 +420,13 @@ export const useStore = create<Store>((set, get) => ({
           s.selectedSceneId != null && scenes.some((sc) => sc.id === s.selectedSceneId)
             ? s.selectedSceneId
             : scenes[0]?.id ?? null;
-        const ids = visibleImageIds(images, s.viewScope, validSceneId, s.sortMode, s.filters);
+        const validSceneIds = repairSceneSelection(s.selectedSceneIds, scenes, validSceneId);
+        const ids = visibleImageIds(images, s.viewScope, validSceneIds, s.sortMode, s.filters);
         const validImageId =
           s.selectedImageId != null && ids.includes(s.selectedImageId)
             ? s.selectedImageId
             : ids[0] ?? null;
-        const sameScene = validSceneId === s.selectedSceneId;
+        const sameScene = sameIds(validSceneIds, s.selectedSceneIds);
         const selectedIds = sameScene
           ? pruneSelection(s.selectedIds, ids, validImageId)
           : validImageId != null
@@ -362,6 +440,11 @@ export const useStore = create<Store>((set, get) => ({
           images,
           scenes,
           selectedSceneId: validSceneId,
+          selectedSceneIds: validSceneIds,
+          sceneAnchorId:
+            s.sceneAnchorId != null && validSceneIds.includes(s.sceneAnchorId)
+              ? s.sceneAnchorId
+              : validSceneId,
           selectedImageId: validImageId,
           selectedIds,
           rangeAnchorId,
@@ -393,9 +476,13 @@ export const useStore = create<Store>((set, get) => ({
       // Selecting an image implicitly switches to that image's scene, and
       // collapses any multi-selection down to just this frame.
       const img = id == null ? null : s.images.find((i) => i.id === id);
+      const sceneId = img?.scene_id ?? s.selectedSceneId;
+      const inSet = sceneId != null && s.selectedSceneIds.includes(sceneId);
       return {
         selectedImageId: id,
-        selectedSceneId: img?.scene_id ?? s.selectedSceneId,
+        selectedSceneId: sceneId,
+        selectedSceneIds: inSet ? s.selectedSceneIds : sceneId != null ? [sceneId] : [],
+        sceneAnchorId: inSet ? s.sceneAnchorId : sceneId,
         selectedIds: id == null ? [] : [id],
         rangeAnchorId: id,
       };
@@ -410,6 +497,8 @@ export const useStore = create<Store>((set, get) => ({
       const first = ids[0] ?? null;
       return {
         selectedSceneId: id,
+        selectedSceneIds: id != null ? [id] : [],
+        sceneAnchorId: id,
         selectedImageId: first,
         selectedIds: first != null ? [first] : [],
         rangeAnchorId: first,
@@ -419,10 +508,56 @@ export const useStore = create<Store>((set, get) => ({
     });
   },
 
+  // Re-derive the frame selection after the scene set changed: primary image
+  // is the top of the union view, and the frame selection collapses to it.
+  setSceneSelection(ids, primary) {
+    set((s) => {
+      const p = primary !== undefined ? primary : ids[ids.length - 1] ?? null;
+      const frames = visibleImageIds(s.images, s.viewScope, ids, s.sortMode, s.filters);
+      const keep =
+        s.selectedImageId != null && frames.includes(s.selectedImageId) ? s.selectedImageId : frames[0] ?? null;
+      return {
+        selectedSceneId: p,
+        selectedSceneIds: ids,
+        sceneAnchorId: p,
+        selectedImageId: keep,
+        selectedIds: keep != null ? [keep] : [],
+        rangeAnchorId: keep,
+        compareIds: [],
+        compareMode: false,
+      };
+    });
+  },
+
+  toggleScene(id) {
+    const s = get();
+    const was = s.selectedSceneIds.includes(id);
+    if (was && s.selectedSceneIds.length === 1) return; // never empty the selection
+    const ids = was ? s.selectedSceneIds.filter((x) => x !== id) : [...s.selectedSceneIds, id];
+    const primary = was && s.selectedSceneId === id ? ids[ids.length - 1] ?? null : id;
+    get().setSceneSelection(ids, primary);
+    set({ sceneAnchorId: id });
+  },
+
+  selectSceneRange(id) {
+    const s = get();
+    const order = computeVisibleScenes(s.scenes, s.images, s.filters).map((sc) => sc.id);
+    const anchor = s.sceneAnchorId ?? s.selectedSceneId ?? id;
+    get().setSceneSelection(rangeIds(order, anchor, id), id);
+    set({ sceneAnchorId: anchor });
+  },
+
+  selectAllScenes() {
+    const s = get();
+    const order = computeVisibleScenes(s.scenes, s.images, s.filters).map((sc) => sc.id);
+    if (order.length === 0) return;
+    get().setSceneSelection(order, s.selectedSceneId ?? order[order.length - 1]);
+  },
+
   moveImage(delta, extend = false) {
-    const { images, viewScope, selectedSceneId, selectedImageId, sortMode, filters, rangeAnchorId } =
+    const { images, viewScope, selectedSceneIds, selectedImageId, sortMode, filters, rangeAnchorId } =
       get();
-    const ids = visibleImageIds(images, viewScope, selectedSceneId, sortMode, filters);
+    const ids = visibleImageIds(images, viewScope, selectedSceneIds, sortMode, filters);
     if (ids.length === 0) return;
     const idx = selectedImageId == null ? 0 : ids.indexOf(selectedImageId);
     const next = Math.max(0, Math.min(ids.length - 1, (idx < 0 ? 0 : idx) + delta));
@@ -443,7 +578,7 @@ export const useStore = create<Store>((set, get) => ({
     }
   },
 
-  moveScene(delta) {
+  moveScene(delta, extend = false) {
     const { viewScope, scenes, images, selectedSceneId, filters } = get();
     // Scene boundaries don't exist in the flattened Matches view.
     if (viewScope === "matches") return;
@@ -452,7 +587,9 @@ export const useStore = create<Store>((set, get) => ({
     const idx = selectedSceneId == null ? 0 : visible.findIndex((s) => s.id === selectedSceneId);
     const next = Math.max(0, Math.min(visible.length - 1, (idx < 0 ? 0 : idx) + delta));
     const nextScene = visible[next];
-    if (nextScene) get().selectScene(nextScene.id);
+    if (!nextScene) return;
+    if (extend) get().selectSceneRange(nextScene.id);
+    else get().selectScene(nextScene.id);
   },
 
   toggleSelect(id) {
@@ -472,7 +609,7 @@ export const useStore = create<Store>((set, get) => ({
   selectRange(id) {
     set((s) => {
       const anchor = s.rangeAnchorId ?? s.selectedImageId ?? id;
-      const ids = visibleImageIds(s.images, s.viewScope, s.selectedSceneId, s.sortMode, s.filters);
+      const ids = visibleImageIds(s.images, s.viewScope, s.selectedSceneIds, s.sortMode, s.filters);
       return {
         selectedIds: rangeIds(ids, anchor, id),
         selectedImageId: id,
@@ -484,7 +621,7 @@ export const useStore = create<Store>((set, get) => ({
   extendRange(id) {
     set((s) => {
       const anchor = s.rangeAnchorId ?? s.selectedImageId ?? id;
-      const ids = visibleImageIds(s.images, s.viewScope, s.selectedSceneId, s.sortMode, s.filters);
+      const ids = visibleImageIds(s.images, s.viewScope, s.selectedSceneIds, s.sortMode, s.filters);
       const union = Array.from(new Set([...s.selectedIds, ...rangeIds(ids, anchor, id)]));
       return { selectedIds: union, selectedImageId: id, rangeAnchorId: anchor };
     });
@@ -499,7 +636,7 @@ export const useStore = create<Store>((set, get) => ({
 
   selectAllInScene() {
     set((s) => {
-      const ids = visibleImageIds(s.images, s.viewScope, s.selectedSceneId, s.sortMode, s.filters);
+      const ids = visibleImageIds(s.images, s.viewScope, s.selectedSceneIds, s.sortMode, s.filters);
       const primary =
         s.selectedImageId != null && ids.includes(s.selectedImageId)
           ? s.selectedImageId
@@ -539,7 +676,7 @@ export const useStore = create<Store>((set, get) => ({
       // backfilling with the frames before it near the end of the scene.
       const primary = s.selectedImageId ?? s.selectedIds[0] ?? null;
       if (primary == null) return { compareMode: true, compareIds: [] };
-      const ids = visibleImageIds(s.images, s.viewScope, s.selectedSceneId, s.sortMode, s.filters);
+      const ids = visibleImageIds(s.images, s.viewScope, s.selectedSceneIds, s.sortMode, s.filters);
       const idx = ids.indexOf(primary);
       if (idx === -1) return { compareMode: true, compareIds: [primary] };
       const start = Math.max(0, Math.min(idx, ids.length - 4));
@@ -730,6 +867,115 @@ export const useStore = create<Store>((set, get) => ({
     }
   },
 
+  async setColorMany(ids, color) {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    set((s) => ({
+      images: s.images.map((i) => (idSet.has(i.id) ? { ...i, color_label: color } : i)),
+    }));
+    try {
+      await window.photocull.setColorMany(ids, color);
+    } catch (err) {
+      set({ error: (err as Error).message });
+      await get().refresh();
+    }
+  },
+
+  showNotice(msg) {
+    set({ notice: msg });
+    setTimeout(() => {
+      if (get().notice === msg) set({ notice: null });
+    }, 5000);
+  },
+
+  setRenamingScene(id) {
+    set({ renamingSceneId: id });
+  },
+
+  async mergeScenes(sceneIds) {
+    if (sceneIds.length < 2) return;
+    try {
+      const { scene_id } = await window.photocull.mergeScenes(sceneIds);
+      await get().refresh();
+      get().setSceneSelection([scene_id], scene_id);
+      get().showNotice(`merged ${sceneIds.length} scenes`);
+    } catch (err) {
+      set({ error: (err as Error).message });
+    }
+  },
+
+  async splitSceneAt(imageId) {
+    const img = get().images.find((i) => i.id === imageId);
+    if (!img || img.scene_id == null) return;
+    const oldScene = img.scene_id;
+    try {
+      const { scene_id } = await window.photocull.splitScene(oldScene, imageId);
+      await get().refresh();
+      get().setSceneSelection([oldScene, scene_id], scene_id);
+      get().selectImage(imageId);
+    } catch (err) {
+      set({ error: (err as Error).message });
+    }
+  },
+
+  async renameScene(sceneId, label) {
+    set({ renamingSceneId: null });
+    const trimmed = label.trim();
+    if (!trimmed) return;
+    try {
+      await window.photocull.updateScene(sceneId, { label: trimmed });
+      await get().refresh();
+    } catch (err) {
+      set({ error: (err as Error).message });
+    }
+  },
+
+  async setSceneCover(sceneId, imageId) {
+    try {
+      await window.photocull.updateScene(sceneId, { cover_image_id: imageId });
+      await get().refresh();
+    } catch (err) {
+      set({ error: (err as Error).message });
+    }
+  },
+
+  async moveImagesToScene(imageIds, sceneId) {
+    if (imageIds.length === 0) return;
+    try {
+      const { scene_id } = await window.photocull.moveImagesToScene(imageIds, sceneId);
+      await get().refresh();
+      // Follow the moved frames: show the destination scene with them selected.
+      get().setSceneSelection([scene_id], scene_id);
+      get().setSelection(imageIds, imageIds[imageIds.length - 1]);
+      get().showNotice(`moved ${imageIds.length} ${imageIds.length === 1 ? "photo" : "photos"}`);
+    } catch (err) {
+      set({ error: (err as Error).message });
+    }
+  },
+
+  async resetSceneGrouping() {
+    try {
+      await window.photocull.regroupScenes(true);
+      await get().refresh();
+      get().showNotice("scenes reset to automatic grouping");
+    } catch (err) {
+      set({ error: (err as Error).message });
+    }
+  },
+
+  async exportImageIds(ids) {
+    if (ids.length === 0) return;
+    get().showNotice("writing sidecars…");
+    try {
+      const r = await window.photocull.exportXmp(false, ids);
+      get().showNotice(
+        r.failed > 0 ? `wrote ${r.written}, failed ${r.failed}` : `wrote ${r.written} sidecar${r.written === 1 ? "" : "s"}`,
+      );
+    } catch (err) {
+      get().showNotice(`export failed: ${(err as Error).message}`);
+    }
+  },
+
   async setStarsMany(ids, stars) {
     if (ids.length === 0) return;
     const idSet = new Set(ids);
@@ -759,7 +1005,9 @@ export const sceneImages = (state: Store): ImageRow[] => {
   const base =
     state.viewScope === "matches"
       ? state.images
-      : state.images.filter((i) => i.scene_id === state.selectedSceneId);
+      : state.images.filter(
+          (i) => i.scene_id != null && state.selectedSceneIds.includes(i.scene_id),
+        );
   return sortByMode(filterImages(base, state.images, state.filters), state.sortMode);
 };
 

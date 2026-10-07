@@ -5,6 +5,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  Menu,
   screen,
   shell,
   type IpcMainEvent,
@@ -13,6 +14,16 @@ import {
 import fs from "node:fs";
 import path from "node:path";
 import { Sidecar } from "./sidecar";
+
+interface MenuTemplateItem {
+  id?: string;
+  label?: string;
+  type?: "separator";
+  enabled?: boolean;
+  checked?: boolean;
+  shortcut?: string;
+  submenu?: MenuTemplateItem[];
+}
 
 const sidecar = new Sidecar();
 let mainWindow: BrowserWindow | null = null;
@@ -36,6 +47,9 @@ async function createWindow(): Promise<void> {
       sandbox: true,
     },
   });
+
+  // A trackpad pinch must reach the loupe's own zoom, not zoom the whole page.
+  mainWindow.webContents.setVisualZoomLevelLimits(1, 1);
 
   // Block navigation away from the app
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -256,9 +270,77 @@ function registerIpc(): void {
 
   ipcMain.handle("listScenes", async () => workerFetch("/scenes"));
 
-  ipcMain.handle("regroupScenes", async () =>
-    workerFetch("/scenes/regroup", { method: "POST" }),
+  ipcMain.handle("regroupScenes", async (_e, force?: boolean) =>
+    workerFetch("/scenes/regroup", {
+      method: "POST",
+      body: JSON.stringify({ force: !!force }),
+    }),
   );
+
+  ipcMain.handle("mergeScenes", async (_e, sceneIds: number[]) =>
+    workerFetch("/scenes/merge", {
+      method: "POST",
+      body: JSON.stringify({ scene_ids: sceneIds }),
+    }),
+  );
+
+  ipcMain.handle("splitScene", async (_e, sceneId: number, atImageId: number) =>
+    workerFetch(`/scenes/${sceneId}/split`, {
+      method: "POST",
+      body: JSON.stringify({ at_image_id: atImageId }),
+    }),
+  );
+
+  ipcMain.handle(
+    "updateScene",
+    async (_e, sceneId: number, patch: { label?: string; cover_image_id?: number }) =>
+      workerFetch(`/scenes/${sceneId}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      }),
+  );
+
+  ipcMain.handle(
+    "moveImagesToScene",
+    async (_e, imageIds: number[], sceneId: number | null) =>
+      workerFetch("/scenes/move-images", {
+        method: "POST",
+        body: JSON.stringify({ image_ids: imageIds, scene_id: sceneId }),
+      }),
+  );
+
+  // Native context menu. The renderer sends a serialisable template; we pop it
+  // up at the cursor and resolve with the clicked item's id (null if dismissed).
+  ipcMain.handle("popupMenu", (e, template: MenuTemplateItem[]) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    if (!win) return Promise.resolve(null);
+    return new Promise<string | null>((resolve) => {
+      let picked: string | null = null;
+      const build = (items: MenuTemplateItem[]): Electron.MenuItemConstructorOptions[] =>
+        items.map((it) => {
+          if (it.type === "separator") return { type: "separator" };
+          if (it.submenu) {
+            return { label: it.label, enabled: it.enabled !== false, submenu: build(it.submenu) };
+          }
+          return {
+            label: it.label,
+            enabled: it.enabled !== false,
+            type: it.checked !== undefined ? "checkbox" : "normal",
+            checked: it.checked,
+            // Shown for reference only; the renderer's own hotkeys do the work.
+            accelerator: it.shortcut,
+            registerAccelerator: false,
+            click: () => {
+              picked = it.id ?? null;
+            },
+          };
+        });
+      Menu.buildFromTemplate(build(template)).popup({
+        window: win,
+        callback: () => resolve(picked),
+      });
+    });
+  });
 
   ipcMain.handle("exportXmp", async (_e, onlyPicked: boolean, imageIds?: number[]) =>
     workerFetch("/export/xmp", {

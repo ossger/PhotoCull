@@ -4,6 +4,18 @@ All notable changes to PhotoCull. Versions correspond to git tags (`v0.3.0`, …
 
 ## Unreleased
 
+- **Zoom while cropping.** Scroll or pinch to zoom the picture under the crop
+  box. Pan with Space+drag or middle-drag, and press Z to flip between fit and 100%.
+- **Multi-select scenes.** ⌘/Ctrl-click and Shift-click pick several scenes in
+  the sidebar (Shift+↑/↓ extends), and the filmstrip and grid show their
+  frames together, so a pick, reject, or rating applies across all of them.
+- **Right-click menus** for photos, scenes, the loupe, compare cells and the
+  crop box. The items change with what's selected: bulk pick/reject/rating/color,
+  compare, move to scene, export XMP for the selection, and more.
+- **Edit scenes by hand:** merge, split at a frame, rename, set the cover, and
+  move photos between scenes. Edits survive re-ingest; "Reset to automatic
+  grouping" undoes them.
+
 - **Sort into events.** A new toolbar action splits a flat card-dump folder into
   `YYYY-MM-DD Name` subfolders, one per event, wherever there's a gap between
   shots longer than an adjustable threshold (default 3 h). You get a preview with

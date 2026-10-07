@@ -73,7 +73,9 @@ CREATE TABLE IF NOT EXISTS scene (
     label           TEXT,
     starts_at       TEXT,
     ends_at         TEXT,
-    cover_image_id  INTEGER REFERENCES image(id)
+    cover_image_id  INTEGER REFERENCES image(id),
+    -- 1 = hand-edited (merge/split/rename/move). regroup() leaves these alone.
+    manual          INTEGER NOT NULL DEFAULT 0
 );
 """
 
@@ -120,6 +122,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE image ADD COLUMN faces_json TEXT")
     if "score_aesthetic" not in cols:
         conn.execute("ALTER TABLE image ADD COLUMN score_aesthetic REAL")
+    scene_cols = {r["name"] for r in conn.execute("PRAGMA table_info(scene)").fetchall()}
+    if "manual" not in scene_cols:
+        conn.execute("ALTER TABLE scene ADD COLUMN manual INTEGER NOT NULL DEFAULT 0")
 
 
 def initialise_shoot(conn: sqlite3.Connection, root_path: Path) -> None:

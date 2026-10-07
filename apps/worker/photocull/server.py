@@ -236,9 +236,69 @@ def list_scenes() -> list[dict[str, Any]]:
     return _require_shoot().list_scenes()
 
 
+class RegroupBody(BaseModel):
+    # force=True also discards hand-edited scenes ("reset to automatic").
+    force: bool = False
+
+
+class MergeScenesBody(BaseModel):
+    scene_ids: list[int]
+
+
+class SplitSceneBody(BaseModel):
+    at_image_id: int
+
+
+class UpdateSceneBody(BaseModel):
+    label: str | None = None
+    cover_image_id: int | None = None
+
+
+class MoveImagesBody(BaseModel):
+    image_ids: list[int]
+    # None = move into a brand-new scene.
+    scene_id: int | None = None
+
+
 @app.post("/scenes/regroup", dependencies=[Depends(require_token)])
-def regroup_scenes() -> dict[str, int]:
-    return {"scene_count": _require_shoot().regroup_scenes()}
+def regroup_scenes(body: RegroupBody | None = None) -> dict[str, int]:
+    force = body.force if body else False
+    return {"scene_count": _require_shoot().regroup_scenes(force=force)}
+
+
+def _scene_edit(fn, *args, **kwargs):
+    try:
+        return fn(*args, **kwargs)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+# NB: /scenes/merge and /scenes/move-images are fixed paths registered before
+# the {scene_id} routes, same ordering concern as the /images/batch routes.
+
+@app.post("/scenes/merge", dependencies=[Depends(require_token)])
+def merge_scenes(body: MergeScenesBody) -> dict[str, int]:
+    return {"scene_id": _scene_edit(_require_shoot().merge_scenes, body.scene_ids)}
+
+
+@app.post("/scenes/move-images", dependencies=[Depends(require_token)])
+def move_images(body: MoveImagesBody) -> dict[str, int]:
+    return {
+        "scene_id": _scene_edit(
+            _require_shoot().move_images_to_scene, body.image_ids, body.scene_id
+        )
+    }
+
+
+@app.post("/scenes/{scene_id}/split", dependencies=[Depends(require_token)])
+def split_scene(scene_id: int, body: SplitSceneBody) -> dict[str, int]:
+    return {"scene_id": _scene_edit(_require_shoot().split_scene, scene_id, body.at_image_id)}
+
+
+@app.patch("/scenes/{scene_id}", dependencies=[Depends(require_token)])
+def update_scene(scene_id: int, body: UpdateSceneBody) -> dict[str, int]:
+    _scene_edit(_require_shoot().update_scene, scene_id, body.label, body.cover_image_id)
+    return {"scene_id": scene_id}
 
 
 class ExportBody(BaseModel):

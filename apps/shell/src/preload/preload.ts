@@ -1,6 +1,10 @@
 // Context bridge: exposes a typed, allow-listed API to the renderer.
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { FilmstripAction, StoreSyncSnapshot } from "../shared/types";
+import type {
+  FilmstripAction,
+  MenuTemplateItem,
+  StoreSyncSnapshot,
+} from "../shared/types";
 
 const invoke = (channel: string, ...args: unknown[]) =>
   ipcRenderer.invoke(channel, ...args);
@@ -69,7 +73,15 @@ contextBridge.exposeInMainWorld("photocull", {
   shootProgress: () => invoke("shootProgress"),
   listImages: () => invoke("listImages"),
   listScenes: () => invoke("listScenes"),
-  regroupScenes: () => invoke("regroupScenes"),
+  regroupScenes: (force?: boolean) => invoke("regroupScenes", force),
+  mergeScenes: (sceneIds: number[]) => invoke("mergeScenes", sceneIds),
+  splitScene: (sceneId: number, atImageId: number) =>
+    invoke("splitScene", sceneId, atImageId),
+  updateScene: (sceneId: number, patch: { label?: string; cover_image_id?: number }) =>
+    invoke("updateScene", sceneId, patch),
+  moveImagesToScene: (imageIds: number[], sceneId: number | null) =>
+    invoke("moveImagesToScene", imageIds, sceneId),
+  popupMenu: (template: MenuTemplateItem[]) => invoke("popupMenu", template),
   exportXmp: (onlyPicked: boolean, imageIds?: number[]) => invoke("exportXmp", onlyPicked, imageIds),
   organizePlan: (source: string, library: string, label: string | null) =>
     invoke("organizePlan", source, library, label),

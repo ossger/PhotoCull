@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore, visibleScenes, sceneMatchCounts } from "../store";
+import { showSceneMenu } from "../contextMenu";
 import type { SceneRow } from "@shared/types";
 
 function fmtTime(iso: string | null): string {
@@ -12,16 +13,44 @@ function fmtTime(iso: string | null): string {
   }
 }
 
+function RenameInput({ scene }: { scene: SceneRow }) {
+  const renameScene = useStore((s) => s.renameScene);
+  const setRenamingScene = useStore((s) => s.setRenamingScene);
+  const [value, setValue] = useState(scene.label ?? `Scene ${scene.id}`);
+  return (
+    <input
+      autoFocus
+      value={value}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setValue(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onBlur={() => void renameScene(scene.id, value)}
+      onKeyDown={(e) => {
+        // Keep typing out of the global hotkeys (P/X/1-5 …).
+        e.stopPropagation();
+        if (e.key === "Enter") void renameScene(scene.id, value);
+        else if (e.key === "Escape") setRenamingScene(null);
+      }}
+      className="w-full text-sm font-medium bg-bg border border-accent rounded px-1 outline-none"
+    />
+  );
+}
+
 function SceneCard({
   scene,
   selected,
+  primary,
   matching,
 }: {
   scene: SceneRow;
   selected: boolean;
+  primary: boolean;
   matching: number;
 }) {
   const selectScene = useStore((s) => s.selectScene);
+  const toggleScene = useStore((s) => s.toggleScene);
+  const selectSceneRange = useStore((s) => s.selectSceneRange);
+  const renaming = useStore((s) => s.renamingSceneId === scene.id);
   const src = scene.cover_thumb ? window.photocull.thumbUrl(scene.cover_thumb) : "";
   // A filter can narrow what's visible within a scene — show "matching / total"
   // whenever that's happened, plain "N frames" otherwise.
@@ -32,10 +61,26 @@ function SceneCard({
   return (
     <button
       type="button"
-      onClick={() => selectScene(scene.id)}
+      onClick={(e) => {
+        // Same modifier semantics as the photo grid: cmd/ctrl toggles,
+        // shift selects a range, plain click replaces.
+        if (e.metaKey || e.ctrlKey) toggleScene(scene.id);
+        else if (e.shiftKey) selectSceneRange(scene.id);
+        else selectScene(scene.id);
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        void showSceneMenu(scene.id);
+      }}
       data-scene-id={scene.id}
-      className={`w-full flex gap-2 p-2 text-left rounded-md border transition-colors
-        ${selected ? "bg-panel2 border-accent" : "bg-panel border-transparent hover:bg-panel2 hover:border-line"}`}
+      className={`w-full flex gap-2 p-2 text-left rounded-md border transition-colors select-none
+        ${
+          primary
+            ? "bg-panel2 border-accent"
+            : selected
+              ? "bg-panel2 border-accent/50"
+              : "bg-panel border-transparent hover:bg-panel2 hover:border-line"
+        }`}
     >
       <div className="w-16 h-16 flex-shrink-0 overflow-hidden rounded bg-bg">
         {src ? (
@@ -43,7 +88,11 @@ function SceneCard({
         ) : null}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium truncate">{scene.label ?? `Scene ${scene.id}`}</div>
+        {renaming ? (
+          <RenameInput scene={scene} />
+        ) : (
+          <div className="text-sm font-medium truncate">{scene.label ?? `Scene ${scene.id}`}</div>
+        )}
         <div className="text-xs text-muted">
           {countLabel}
           {scene.starts_at ? ` · ${fmtTime(scene.starts_at)}` : ""}
@@ -62,6 +111,7 @@ export function SceneList() {
   const scenes = useStore(visibleScenes);
   const matchCounts = useStore(sceneMatchCounts);
   const selectedSceneId = useStore((s) => s.selectedSceneId);
+  const selectedSceneIds = useStore((s) => s.selectedSceneIds);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Keep the selected scene visible when the keyboard moves it.
@@ -86,7 +136,8 @@ export function SceneList() {
         <SceneCard
           key={s.id}
           scene={s}
-          selected={s.id === selectedSceneId}
+          selected={selectedSceneIds.includes(s.id)}
+          primary={s.id === selectedSceneId}
           matching={matchCounts.get(s.id) ?? s.image_count}
         />
       ))}
