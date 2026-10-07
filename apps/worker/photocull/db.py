@@ -51,6 +51,14 @@ CREATE TABLE IF NOT EXISTS image (
     faces_json      TEXT,      -- per-face boxes + eye centres as JSON (NULL = none)
     score_aesthetic REAL,
     score_overall   REAL,
+    -- Median preview luminance, 0..1 (star-sequence detection uses it)
+    luma            REAL,
+    -- Star-frame measurements, filled by /astro/analyze
+    astro_stars     INTEGER,
+    astro_fwhm      REAL,
+    astro_elong     REAL,
+    astro_bg        REAL,
+    astro_trail     INTEGER,
     -- Cached previews (relative to cache dir)
     thumb_path      TEXT,
     preview_path    TEXT,
@@ -75,7 +83,9 @@ CREATE TABLE IF NOT EXISTS scene (
     ends_at         TEXT,
     cover_image_id  INTEGER REFERENCES image(id),
     -- 1 = hand-edited (merge/split/rename/move). regroup() leaves these alone.
-    manual          INTEGER NOT NULL DEFAULT 0
+    manual          INTEGER NOT NULL DEFAULT 0,
+    -- NULL = ordinary scene; 'astro' = a stackable star sequence
+    kind            TEXT
 );
 """
 
@@ -122,9 +132,17 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE image ADD COLUMN faces_json TEXT")
     if "score_aesthetic" not in cols:
         conn.execute("ALTER TABLE image ADD COLUMN score_aesthetic REAL")
+    for col, typ in (
+        ("luma", "REAL"), ("astro_stars", "INTEGER"), ("astro_fwhm", "REAL"),
+        ("astro_elong", "REAL"), ("astro_bg", "REAL"), ("astro_trail", "INTEGER"),
+    ):
+        if col not in cols:
+            conn.execute(f"ALTER TABLE image ADD COLUMN {col} {typ}")
     scene_cols = {r["name"] for r in conn.execute("PRAGMA table_info(scene)").fetchall()}
     if "manual" not in scene_cols:
         conn.execute("ALTER TABLE scene ADD COLUMN manual INTEGER NOT NULL DEFAULT 0")
+    if "kind" not in scene_cols:
+        conn.execute("ALTER TABLE scene ADD COLUMN kind TEXT")
 
 
 def initialise_shoot(conn: sqlite3.Connection, root_path: Path) -> None:
@@ -144,7 +162,7 @@ def upsert_image(conn: sqlite3.Connection, row: dict[str, Any]) -> int:
         "focus_mode", "af_area_mode", "af_points_in_focus",
         "thumb_path", "preview_path", "full_path",
         "phash", "score_focus", "score_exposure", "score_eyes",
-        "n_faces", "faces_json", "score_aesthetic", "score_overall",
+        "n_faces", "faces_json", "score_aesthetic", "score_overall", "luma",
     ]
     placeholders = ", ".join(["?"] * len(cols))
     updates = ", ".join(f"{c}=excluded.{c}" for c in cols if c != "rel_path")

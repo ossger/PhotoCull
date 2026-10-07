@@ -28,6 +28,8 @@ from typing import Iterable
 import imagehash
 from PIL import Image
 
+from .astro import detect as astro_detect
+
 log = logging.getLogger(__name__)
 
 # Fallback / floor / ceiling time thresholds (seconds)
@@ -44,6 +46,7 @@ class _Row:
     captured_at: datetime | None
     phash: imagehash.ImageHash | None
     score: float | None
+    frame: astro_detect.Frame | None = None
 
 
 def _parse_iso(value: str | None) -> datetime | None:
@@ -104,7 +107,8 @@ def regroup(conn: sqlite3.Connection, force: bool = False) -> int:
             "WHERE scene_id IS NOT NULL AND scene_id NOT IN (SELECT id FROM scene)"
         )
     cur = conn.execute(
-        "SELECT id, captured_at, phash, score_overall FROM image "
+        "SELECT id, captured_at, phash, score_overall, iso, shutter, aperture, "
+        "focal_length, camera_model, lens, luma FROM image "
         "WHERE scene_id IS NULL "
         "ORDER BY captured_at IS NULL, captured_at, filename"
     )
@@ -114,6 +118,17 @@ def regroup(conn: sqlite3.Connection, force: bool = False) -> int:
             captured_at=_parse_iso(r["captured_at"]),
             phash=_parse_phash(r["phash"]),
             score=r["score_overall"],
+            frame=astro_detect.Frame(
+                id=int(r["id"]),
+                captured_at=_parse_iso(r["captured_at"]),
+                iso=r["iso"],
+                shutter=r["shutter"],
+                aperture=r["aperture"],
+                focal_length=r["focal_length"],
+                camera=r["camera_model"],
+                lens=r["lens"],
+                luma=r["luma"],
+            ),
         )
         for r in cur.fetchall()
     ]
@@ -124,6 +139,15 @@ def regroup(conn: sqlite3.Connection, force: bool = False) -> int:
     gap_threshold = _adaptive_gap(rows)
     log.info("scene grouping: %d images, gap=%.1fs", len(rows), gap_threshold)
 
+    # Star sequences are kept whole (dark, noisy frames defeat the pHash check
+    # and the time gap is long by design) and cut cleanly from their neighbours.
+    run_of: dict[int, int] = {}
+    for run_idx, run_ids in enumerate(
+        astro_detect.find_sequences([r.frame for r in rows if r.frame is not None])
+    ):
+        for image_id in run_ids:
+            run_of[image_id] = run_idx
+
     scenes: list[list[_Row]] = []
     current: list[_Row] = []
     prev: _Row | None = None
@@ -133,15 +157,19 @@ def regroup(conn: sqlite3.Connection, force: bool = False) -> int:
             prev = row
             continue
         split = False
+        run_prev = run_of.get(prev.id) if prev else None
+        run_here = run_of.get(row.id)
+        if run_prev is not None or run_here is not None:
+            split = run_prev != run_here
         # Time-based split
-        if prev and prev.captured_at and row.captured_at:
+        elif prev and prev.captured_at and row.captured_at:
             if (row.captured_at - prev.captured_at).total_seconds() > gap_threshold:
                 split = True
         elif prev and (prev.captured_at is None) != (row.captured_at is None):
             # Boundary between timed and untimed images
             split = True
         # pHash refinement: only when both sides have hashes and we haven't already split
-        if not split and prev and prev.phash and row.phash:
+        if not split and run_here is None and prev and prev.phash and row.phash:
             if (prev.phash - row.phash) > PHASH_SPLIT_THRESHOLD:
                 split = True
         if split:
@@ -162,12 +190,14 @@ def regroup(conn: sqlite3.Connection, force: bool = False) -> int:
         scored = [r for r in group if r.score is not None]
         cover = max(scored, key=lambda r: r.score or 0.0) if scored else group[0]
         cur = conn.execute(
-            "INSERT INTO scene (label, starts_at, ends_at, cover_image_id) VALUES (?, ?, ?, ?)",
+            "INSERT INTO scene (label, starts_at, ends_at, cover_image_id, kind) "
+            "VALUES (?, ?, ?, ?, ?)",
             (
                 f"Scene {manual_count + idx}",
                 starts.isoformat() if starts else None,
                 ends.isoformat() if ends else None,
                 cover.id,
+                "astro" if run_of.get(group[0].id) is not None else None,
             ),
         )
         scene_id = int(cur.lastrowid or 0)
@@ -276,6 +306,17 @@ def split_scene(conn: sqlite3.Connection, scene_id: int, at_image_id: int) -> in
     _refresh_scene(conn, scene_id)
     _refresh_scene(conn, new_id)
     return new_id
+
+
+def set_scene_kind(conn: sqlite3.Connection, scene_id: int, kind: str | None) -> None:
+    """Tag a scene as a star sequence ('astro') or clear the tag (None)."""
+    if kind not in (None, "astro"):
+        raise ValueError("unknown scene kind")
+    cur = conn.execute(
+        "UPDATE scene SET kind = ?, manual = 1 WHERE id = ?", (kind, scene_id)
+    )
+    if cur.rowcount == 0:
+        raise ValueError("no such scene")
 
 
 def rename_scene(conn: sqlite3.Connection, scene_id: int, label: str) -> None:

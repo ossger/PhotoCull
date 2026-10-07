@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 from . import __version__
 from . import events as events_mod
 from . import organize as organize_mod
+from .astro.stack import StackOptions
 from .shoot import Shoot
 
 log = logging.getLogger("photocull.server")
@@ -92,6 +93,19 @@ def _set_organize_progress(done: int, total: int, current: str) -> None:
     _organize_progress["done"] = done
     _organize_progress["total"] = total
     _organize_progress["current"] = current
+
+
+# Star-stack progress; one stack at a time. `result` holds the finished stack's
+# summary (see Shoot.stack_astro), `error` a failure message.
+_astro_progress: dict[str, Any] = {
+    "state": "idle", "done": 0, "total": 0, "current": None, "result": None, "error": None,
+}
+
+
+def _set_astro_progress(done: int, total: int, current: str) -> None:
+    _astro_progress["done"] = done
+    _astro_progress["total"] = total
+    _astro_progress["current"] = current
 
 
 # ----- models -----
@@ -252,6 +266,8 @@ class SplitSceneBody(BaseModel):
 class UpdateSceneBody(BaseModel):
     label: str | None = None
     cover_image_id: int | None = None
+    # 'astro' tags a star sequence; '' clears the tag.
+    kind: str | None = None
 
 
 class MoveImagesBody(BaseModel):
@@ -297,8 +313,63 @@ def split_scene(scene_id: int, body: SplitSceneBody) -> dict[str, int]:
 
 @app.patch("/scenes/{scene_id}", dependencies=[Depends(require_token)])
 def update_scene(scene_id: int, body: UpdateSceneBody) -> dict[str, int]:
-    _scene_edit(_require_shoot().update_scene, scene_id, body.label, body.cover_image_id)
+    _scene_edit(
+        _require_shoot().update_scene, scene_id, body.label, body.cover_image_id, body.kind
+    )
     return {"scene_id": scene_id}
+
+
+class AstroAnalyzeBody(BaseModel):
+    image_ids: list[int] = Field(..., min_length=2)
+
+
+@app.post("/astro/analyze", dependencies=[Depends(require_token)])
+def astro_analyze(body: AstroAnalyzeBody) -> dict[str, Any]:
+    """Star metrics + a recommended include/exclude for each frame of a sequence."""
+    try:
+        return _require_shoot().analyze_astro(body.image_ids)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+class AstroStackBody(BaseModel):
+    image_ids: list[int] = Field(..., min_length=3)
+    half_size: bool = False
+    # "auto" blends an unaligned foreground back in; "none" stacks the whole frame on the stars.
+    foreground: str = Field("auto", pattern="^(auto|none)$")
+
+
+@app.post("/astro/stack", dependencies=[Depends(require_token)])
+async def astro_stack(body: AstroStackBody) -> dict[str, Any]:
+    """Stack the frames in the background; poll /astro/progress."""
+    shoot = _require_shoot()
+    if _astro_progress["state"] == "running":
+        raise HTTPException(409, "a stack is already running")
+    _astro_progress.update(
+        state="running", done=0, total=3 * len(body.image_ids) + 2,
+        current=None, result=None, error=None,
+    )
+    options = StackOptions(half_size=body.half_size, foreground=body.foreground)
+
+    async def _run() -> None:
+        loop = asyncio.get_running_loop()
+        try:
+            result = await loop.run_in_executor(
+                None,
+                lambda: shoot.stack_astro(body.image_ids, options, _set_astro_progress),
+            )
+            _astro_progress.update(state="complete", result=result, current=None)
+        except Exception as exc:  # noqa: BLE001 - surface any failure to the UI
+            log.exception("star stack failed")
+            _astro_progress.update(state="error", error=str(exc), current=None)
+
+    asyncio.create_task(_run())
+    return {"started": True}
+
+
+@app.get("/astro/progress", dependencies=[Depends(require_token)])
+def astro_progress() -> dict[str, Any]:
+    return dict(_astro_progress)
 
 
 class ExportBody(BaseModel):

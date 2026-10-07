@@ -13,7 +13,9 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Iterable
 
+import cv2
 import imagehash
+import numpy as np
 import rawpy
 from PIL import Image, ExifTags, ImageOps
 
@@ -70,6 +72,7 @@ class IngestedImage:
     faces_json: str | None
     score_aesthetic: float | None
     score_overall: float | None
+    luma: float | None = None
 
 
 def walk_folder(root: Path) -> Iterable[Path]:
@@ -203,6 +206,13 @@ def _decode_source(src: Path) -> tuple[Image.Image, dict[str, object], tuple[int
     return im, exif, im.size
 
 
+def _median_luma(preview_path: Path) -> float | None:
+    gray = cv2.imread(str(preview_path), cv2.IMREAD_GRAYSCALE)
+    if gray is None or gray.size == 0:
+        return None
+    return float(np.median(gray)) / 255.0
+
+
 def ingest_one(
     src: Path,
     root: Path,
@@ -316,6 +326,8 @@ def ingest_one(
         ingested.faces_json = faces_score.serialize_faces(faces_result.faces)
     except Exception as exc:  # noqa: BLE001 - face model failures shouldn't kill ingest
         log.warning("faces detection failed for %s: %s", src, exc)
+
+    ingested.luma = _median_luma(preview_path)
 
     ingested.score_overall = overall_score(
         Scores(

@@ -18,6 +18,8 @@ from .db import connect, initialise_shoot, upsert_image
 from .ingest import group_sources, ingest_one, walk_folder
 from . import focus_meta
 from . import scenes as scenes_mod
+from .astro import analyze as astro_analyze
+from .astro import stack as astro_stack
 from .export import xmp as xmp_export
 
 log = logging.getLogger(__name__)
@@ -172,7 +174,7 @@ class Shoot:
     def list_scenes(self) -> list[dict[str, Any]]:
         cur = self.conn.execute(
             """
-            SELECT s.id, s.label, s.starts_at, s.ends_at, s.cover_image_id, s.manual,
+            SELECT s.id, s.label, s.starts_at, s.ends_at, s.cover_image_id, s.manual, s.kind,
                    (SELECT COUNT(*) FROM image i WHERE i.scene_id = s.id) AS image_count,
                    (SELECT thumb_path FROM image WHERE id = s.cover_image_id) AS cover_thumb,
                    (SELECT AVG(score_overall) FROM image WHERE scene_id = s.id) AS avg_score
@@ -197,13 +199,63 @@ class Shoot:
             return scenes_mod.split_scene(self.conn, scene_id, at_image_id)
 
     def update_scene(
-        self, scene_id: int, label: str | None = None, cover_image_id: int | None = None
+        self,
+        scene_id: int,
+        label: str | None = None,
+        cover_image_id: int | None = None,
+        kind: str | None = None,
     ) -> None:
+        """`kind` is 'astro' to tag a star sequence, '' to clear the tag."""
         with self._lock:
+            if kind is not None:
+                scenes_mod.set_scene_kind(self.conn, scene_id, kind or None)
             if label is not None:
                 scenes_mod.rename_scene(self.conn, scene_id, label)
             if cover_image_id is not None:
                 scenes_mod.set_cover(self.conn, scene_id, cover_image_id)
+
+    # ---- star sequences ----
+
+    def analyze_astro(self, image_ids: list[int]) -> dict[str, Any]:
+        with self._lock:
+            return astro_analyze.analyze_frames(self.conn, self.cache_dir, image_ids)
+
+    def stack_astro(
+        self,
+        image_ids: list[int],
+        options: "astro_stack.StackOptions | None" = None,
+        progress: Callable[[int, int, str], None] | None = None,
+    ) -> dict[str, Any]:
+        """Stack frames into a 16-bit TIFF under <shoot>/Stacks/ (never overwrites).
+
+        Reads the original files; nothing in the shoot's picks or scenes changes.
+        """
+        marks = ",".join("?" * len(image_ids))
+        with self._lock:
+            rows = self.conn.execute(
+                f"SELECT rel_path FROM image WHERE id IN ({marks}) "
+                "ORDER BY captured_at IS NULL, captured_at, filename",
+                image_ids,
+            ).fetchall()
+        sources = [self.root / r["rel_path"] for r in rows]
+        if len(sources) < 3:
+            raise ValueError("need at least three frames to stack")
+        out_dir = self.root / "Stacks"
+        base = f"{sources[0].stem}-{sources[-1].stem}_stack"
+        output, n = out_dir / f"{base}.tif", 1
+        while output.exists():
+            n += 1
+            output = out_dir / f"{base}_{n}.tif"
+        preview = self.cache_dir / "preview" / f"stack_{output.stem}.jpg"
+        result = astro_stack.stack_sequence(sources, output, preview, options, progress)
+        return {
+            "output": str(result.output),
+            "preview_path": preview.relative_to(self.cache_dir).as_posix(),
+            "used": result.used,
+            "skipped": [{"filename": name, "reason": why} for name, why in result.skipped],
+            "width": result.width,
+            "height": result.height,
+        }
 
     def move_images_to_scene(self, image_ids: list[int], scene_id: int | None) -> int:
         with self._lock:
