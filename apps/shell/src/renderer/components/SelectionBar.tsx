@@ -7,16 +7,7 @@ export function SelectionBar() {
   const setPickMany = useStore((s) => s.setPickMany);
   const clearSelection = useStore((s) => s.clearSelection);
   const exportImageIds = useStore((s) => s.exportImageIds);
-  const openStackPanel = useStore((s) => s.openStackPanel);
-  // Offer stacking only when every selected frame is a long exposure (>= 2 s).
-  const stackable = useStore((s) => {
-    if (s.selectedIds.length < 3) return false;
-    const ids = new Set(s.selectedIds);
-    return s.images.filter((i) => ids.has(i.id)).every((i) => {
-      const m = /^([\d.]+)s$/.exec(i.shutter ?? "");
-      return m != null && Number(m[1]) >= 2;
-    });
-  });
+  const makeStarSequence = useStore((s) => s.makeStarSequence);
   if (selectedIds.length < 2) return null;
   return (
     <div className="px-3 py-1.5 border-t border-line bg-panel flex items-center gap-2 text-xs">
@@ -46,16 +37,15 @@ export function SelectionBar() {
         Unset
       </button>
       <span className="w-px h-4 bg-line mx-1" />
-      {stackable && (
-        <button
-          type="button"
-          onClick={() => openStackPanel(selectedIds)}
-          className="px-2 py-0.5 rounded bg-accent/20 text-accent hover:bg-accent/30"
-          title="Judge these frames and stack them into one star image"
-        >
-          ✦ Stack stars…
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => void makeStarSequence(selectedIds)}
+        className="px-2 py-0.5 rounded bg-accent/20 text-accent hover:bg-accent/30"
+        title="Group these frames into one star sequence, then judge and stack them"
+      >
+        ✦ Make star sequence{selectedIds.length >= 3 ? " & stack…" : ""}
+      </button>
+
       <button
         type="button"
         onClick={() => void exportImageIds(selectedIds)}

@@ -188,6 +188,7 @@ interface Store {
   stackPanelIds: number[] | null;
   openStackPanel: (ids?: number[]) => void;
   closeStackPanel: () => void;
+  makeStarSequence: (ids: number[]) => Promise<void>;
   markStarSequence: (sceneId: number, on: boolean) => Promise<void>;
 }
 
@@ -1045,6 +1046,21 @@ export const useStore = create<Store>((set, get) => ({
   },
   closeStackPanel() {
     set({ stackPanelIds: null });
+  },
+  async makeStarSequence(ids) {
+    if (ids.length === 0) return;
+    try {
+      // One new scene holding exactly these frames, tagged as a star sequence.
+      const { scene_id } = await window.photocull.moveImagesToScene(ids, null);
+      await window.photocull.updateScene(scene_id, { kind: "astro", label: "Star sequence" });
+      await get().refresh();
+      get().setSceneSelection([scene_id], scene_id);
+      get().setSelection(ids, ids[ids.length - 1]);
+      if (ids.length >= 3) get().openStackPanel(ids);
+      else get().showNotice("marked as star sequence — need 3+ frames to stack");
+    } catch (err) {
+      set({ error: (err as Error).message });
+    }
   },
   async markStarSequence(sceneId, on) {
     try {

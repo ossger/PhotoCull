@@ -97,7 +97,14 @@ export async function showImageMenu(imageId: number): Promise<void> {
     ...cullItems(many ? "all" : ""),
     SEP,
   ];
-  if (many && ids.length >= 3) t.push({ id: "stack", label: `Stack ${ids.length} frames as stars…` }, SEP);
+  if (many && !popOut) {
+    t.push({
+      id: "starSeq",
+      label: ids.length >= 3 ? `Make star sequence from ${ids.length} photos & stack…` : `Make star sequence from ${ids.length} photos`,
+    });
+  }
+  if (many && ids.length >= 3) t.push({ id: "stack", label: `Stack ${ids.length} frames as stars…` });
+  if (many) t.push(SEP);
   if (many) {
     t.push({
       id: "compare",
@@ -128,6 +135,9 @@ export async function showImageMenu(imageId: number): Promise<void> {
     return;
   }
   switch (choice) {
+    case "starSeq":
+      await s.makeStarSequence(ids);
+      break;
     case "stack":
       s.openStackPanel(ids);
       break;
