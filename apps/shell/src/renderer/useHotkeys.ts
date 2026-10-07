@@ -59,6 +59,8 @@ export function useHotkeys() {
         return;
       }
       const state = useStore.getState();
+      // A modal panel owns the keyboard; P/X/1-5 must not cull frames behind it.
+      if (state.stackPanelIds != null) return;
       const id = state.selectedImageId;
       // Pick/reject/star hotkeys apply to the whole multi-selection when
       // there is one, falling back to just the primary frame.

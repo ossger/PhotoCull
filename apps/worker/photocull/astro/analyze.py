@@ -75,6 +75,8 @@ def analyze_frames(
         f"WHERE id IN ({marks}) ORDER BY captured_at IS NULL, captured_at, filename",
         image_ids,
     ).fetchall()
+    if not rows:
+        raise ValueError("none of those frames are in this shoot")
 
     fields = measure_stars(
         [_read_gray(cache_dir / r["preview_path"] if r["preview_path"] else None) for r in rows]

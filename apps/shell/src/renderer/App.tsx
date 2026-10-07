@@ -11,6 +11,7 @@ import { useFilmstripHost } from "./filmstripSync";
 import { useMenuActions } from "./useMenuActions";
 import { SelectionBar } from "./components/SelectionBar";
 import { ShortcutsOverlay } from "./components/ShortcutsOverlay";
+import { StackPanel } from "./components/StackPanel";
 import { StatusBar } from "./components/StatusBar";
 
 export function App() {
@@ -45,6 +46,7 @@ export function App() {
         </div>
       </div>
       <ShortcutsOverlay />
+      <StackPanel />
     </div>
   );
 }

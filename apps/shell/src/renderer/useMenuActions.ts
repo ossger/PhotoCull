@@ -17,6 +17,9 @@ export function useMenuActions() {
         case "file:sortEvents":
           s.setEventSortOpen(true);
           break;
+        case "file:stackStars":
+          s.openStackPanel();
+          break;
         case "file:exportPicks":
           void s.exportPicks();
           break;

@@ -293,7 +293,7 @@ function registerIpc(): void {
 
   ipcMain.handle(
     "updateScene",
-    async (_e, sceneId: number, patch: { label?: string; cover_image_id?: number }) =>
+    async (_e, sceneId: number, patch: { label?: string; cover_image_id?: number; kind?: string }) =>
       workerFetch(`/scenes/${sceneId}`, {
         method: "PATCH",
         body: JSON.stringify(patch),
@@ -454,6 +454,28 @@ function registerIpc(): void {
       }),
   );
 
+  ipcMain.handle("astroAnalyze", async (_e, imageIds: number[]) =>
+    workerFetch("/astro/analyze", {
+      method: "POST",
+      body: JSON.stringify({ image_ids: imageIds }),
+    }),
+  );
+
+  ipcMain.handle(
+    "astroStack",
+    async (_e, imageIds: number[], options: { halfSize: boolean; foreground: string }) =>
+      workerFetch("/astro/stack", {
+        method: "POST",
+        body: JSON.stringify({
+          image_ids: imageIds,
+          half_size: options.halfSize,
+          foreground: options.foreground,
+        }),
+      }),
+  );
+
+  ipcMain.handle("astroProgress", async () => workerFetch("/astro/progress"));
+
   ipcMain.handle("workerInfo", async () => sidecar.info);
 
   ipcMain.handle("revealPath", (_e, p: string) => {
@@ -499,6 +521,8 @@ function buildAppMenu(): void {
         item("Open Folder…", "file:open", "CmdOrCtrl+O"),
         item("Import from Card…", "file:import", "CmdOrCtrl+I"),
         item("Sort into Events…", "file:sortEvents"),
+        { type: "separator" },
+        item("Stack Stars…", "file:stackStars", "CmdOrCtrl+Shift+S"),
         { type: "separator" },
         item("Export Picks", "file:exportPicks", "CmdOrCtrl+E"),
         item("Export Matches", "file:exportMatches"),

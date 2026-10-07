@@ -91,7 +91,14 @@ function SceneCard({
         {renaming ? (
           <RenameInput scene={scene} />
         ) : (
-          <div className="text-sm font-medium truncate">{scene.label ?? `Scene ${scene.id}`}</div>
+          <div className="text-sm font-medium truncate">
+            {scene.kind === "astro" && (
+              <span className="text-accent mr-1" title="Star sequence — right-click to stack">
+                ✦
+              </span>
+            )}
+            {scene.label ?? `Scene ${scene.id}`}
+          </div>
         )}
         <div className="text-xs text-muted">
           {countLabel}

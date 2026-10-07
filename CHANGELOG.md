@@ -4,6 +4,18 @@ All notable changes to PhotoCull. Versions correspond to git tags (`v0.3.0`, …
 
 ## Unreleased
 
+- **Star stacking.** Untracked, tripod star sequences (long exposures shot back
+  to back with the same settings) are detected on open and kept together as one
+  ✦ scene. Right-click a star scene, or select its frames, and choose **Stack
+  stars…**. PhotoCull measures stars in every frame (count, sharpness, roundness,
+  sky brightness, satellite streaks) against the sequence's own median and
+  recommends which frames to leave out: cloud or haze, soft or shaken frames,
+  light creeping into the sky. You can override every call and, if you like,
+  reject the left-out frames in your cull. It then aligns the sky on the middle
+  frame, sigma-clips out satellites and hot pixels, keeps the landscape still
+  (an automatic sky/foreground mask), and writes a 16-bit TIFF to `Stacks/` beside
+  your shoot. Your originals are never changed. Mark a scene by hand with
+  "Mark as star sequence" if detection misses one.
 - **Cleaner top bar and a real menu.** The bar now reads left to right: the shoot
   name and an Open menu, the view switches (Grid / Loupe / Compare, Scenes /
   Matches), then Sort, Filter, Eyes, and a single Export button with matches and

@@ -22,6 +22,9 @@ A cross-platform desktop culling app for photographers. Inspired by Narrative Se
 - **Crop** — aspect presets, defaulting to the original ratio.
 - **Export** — picks, stars, color labels, and crops written as **XMP sidecars**
   that Lightroom and Capture One read. Your originals are never modified.
+- **Star stacking** — finds tripod star sequences, recommends which frames to
+  leave out (cloud, soft, trailed, bright sky), and stacks the rest into a
+  16-bit TIFF with the sky aligned and the landscape kept sharp.
 - **Import / Sort into events** — tidy card dumps into dated folders before culling.
 
 ### Hotkeys

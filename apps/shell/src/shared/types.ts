@@ -72,6 +72,52 @@ export interface SceneRow {
   avg_score: number | null;
   // 1 = hand-edited (survives regroup); 0 = automatic.
   manual: number;
+  // 'astro' = a stackable star sequence; null = an ordinary scene.
+  kind: string | null;
+}
+
+// ----- star sequences -----
+
+// One frame of a star sequence, as measured by /astro/analyze.
+export interface AstroFrame {
+  id: number;
+  filename: string;
+  thumb_path: string | null;
+  stars: number | null; // null = the frame couldn't be read
+  fwhm: number | null; // px, median star width (focus / seeing)
+  elongation: number | null; // 1 = round; higher = trailed or shaken
+  background: number | null; // median sky brightness, 0..1
+  trails: number; // satellite/plane streaks seen in this frame
+  include: boolean; // recommended: keep in the stack
+  reasons: string[]; // why it's recommended out
+}
+
+export interface AstroAnalysis {
+  frames: AstroFrame[];
+  summary: { frames: number; median_stars: number; recommended_include: number };
+}
+
+export interface AstroStackOptions {
+  halfSize: boolean; // decode at half resolution: faster, a quarter of the memory
+  foreground: "auto" | "none"; // auto = keep the landscape still; none = stack the whole frame on the stars
+}
+
+export interface AstroStackResult {
+  output: string; // absolute path of the TIFF
+  preview_path: string; // under the shoot cache; load with previewUrl()
+  used: number;
+  skipped: { filename: string; reason: string }[];
+  width: number;
+  height: number;
+}
+
+export interface AstroStackProgress {
+  state: "idle" | "running" | "complete" | "error";
+  done: number;
+  total: number;
+  current: string | null;
+  result: AstroStackResult | null;
+  error: string | null;
 }
 
 // Serialisable native-menu template (see main.ts "popupMenu").
@@ -219,7 +265,7 @@ export interface PhotoCullBridge {
   splitScene(sceneId: number, atImageId: number): Promise<{ scene_id: number }>;
   updateScene(
     sceneId: number,
-    patch: { label?: string; cover_image_id?: number },
+    patch: { label?: string; cover_image_id?: number; kind?: string },
   ): Promise<{ scene_id: number }>;
   // sceneId null = move into a brand-new scene.
   moveImagesToScene(imageIds: number[], sceneId: number | null): Promise<{ scene_id: number }>;
@@ -253,6 +299,10 @@ export interface PhotoCullBridge {
   // shoot root (full_path is null); RAW/HEIC stream from the cache.
   fullUrl(image: ImageRow): string;
 
+  // Star sequences: measure + recommend a cull, then stack in the background.
+  astroAnalyze(imageIds: number[]): Promise<AstroAnalysis>;
+  astroStack(imageIds: number[], options: AstroStackOptions): Promise<{ started: boolean }>;
+  astroProgress(): Promise<AstroStackProgress>;
   // Native application menu -> renderer: the id of the clicked item.
   onMenuAction(cb: (id: string) => void): () => void;
   // Show a file or folder in Finder / Explorer.

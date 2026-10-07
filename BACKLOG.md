@@ -25,12 +25,21 @@ ships, move it to **Done** with the date and add a line to `CHANGELOG.md`.
 
 ## Ideas
 
+- **Star stacking, next:** try it on real RAW sequences and tune the thresholds;
+  a brush to correct the foreground mask; local (grid) warp for very long
+  sequences or wide lenses; dark-frame subtraction; star-tracker (fixed-sky)
+  sequences.
 - [#8](https://github.com/ossger/PhotoCull/issues/8) **Post-cull pipeline:** hand picks to Lightroom / Photoshop, then share edited
   exports (Instagram, Immich, a shared album for TV screens).
 - Google Photos / iCloud as Import sources.
 
 ## Done
 
+- 2026-10-07: **Star stacking** for untracked tripod sequences: detection,
+  per-frame cull recommendations, and an in-app stacker (16-bit TIFF).
+  Not yet run on real RAW sequences, only synthetic ones.
+- 2026-10-07: **Top bar regrouped**, with a native File/View menu, a status bar,
+  and a `?` shortcuts sheet.
 - 2026-10-05: **Zoom and pan in compare.** Each frame zooms and pans on its own,
   with optional synced zoom.
 - 2026-10-05: **Compare starts with four frames** automatically instead of

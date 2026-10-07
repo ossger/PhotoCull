@@ -413,6 +413,8 @@ def stack_sequence(
             good.append((i, Hs[local]))
     if len(good) < 3:
         raise ValueError("could not align at least three frames")
+    # Skipped frames never reach passes 2 and 3: shrink the total so progress ends at 100%.
+    total = len(sources) + 2 * len(good) + 2
     ref_path = sources[usable[ref_local]]
 
     # -- pass 2: mean and spread of the aligned stack (and the unaligned foreground sum) --

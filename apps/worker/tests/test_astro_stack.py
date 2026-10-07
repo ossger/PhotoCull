@@ -142,9 +142,13 @@ def test_a_frame_with_no_stars_is_skipped_not_fatal(tmp_path):
         # frame 3 is solid cloud: nothing to align on
         write_jpeg(p, render_frame(k, cat, noise_seed=k, cloud=1.0 if k == 3 else 0.0), stamp_for(k))
         paths.append(p)
-    result = stack_sequence(paths, tmp_path / "o.tif", tmp_path / "o.jpg")
+    seen = []
+    result = stack_sequence(paths, tmp_path / "o.tif", tmp_path / "o.jpg",
+                            progress=lambda d, t, _l: seen.append((d, t)))
     assert [name for name, _ in result.skipped] == ["f3.jpg"]
     assert result.used == 7
+    # progress still ends at 100% when frames were skipped along the way
+    assert seen[-1][0] == seen[-1][1]
 
 
 def test_too_few_frames_is_an_error(tmp_path):

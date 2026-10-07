@@ -183,6 +183,12 @@ interface Store {
   setImportOpen: (open: boolean) => void;
   setEventSortOpen: (open: boolean) => void;
   setShortcutsOpen: (open: boolean) => void;
+
+  // Star stacking. `stackPanelIds` is the frame set the panel is open on (null = closed).
+  stackPanelIds: number[] | null;
+  openStackPanel: (ids?: number[]) => void;
+  closeStackPanel: () => void;
+  markStarSequence: (sceneId: number, on: boolean) => Promise<void>;
 }
 
 function sortByMode(images: ImageRow[], mode: SortMode): ImageRow[] {
@@ -368,6 +374,7 @@ export const useStore = create<Store>((set, get) => ({
   importOpen: false,
   eventSortOpen: false,
   shortcutsOpen: false,
+  stackPanelIds: null,
 
   async openFolder() {
     set({ error: null });
@@ -1024,6 +1031,28 @@ export const useStore = create<Store>((set, get) => ({
   },
   setShortcutsOpen(open) {
     set({ shortcutsOpen: open });
+  },
+
+  openStackPanel(ids) {
+    const s = get();
+    // No explicit set: a multi-selection wins, else the whole current scene.
+    const chosen = ids ?? (s.selectedIds.length >= 3 ? s.selectedIds : sceneImages(s).map((i) => i.id));
+    if (chosen.length < 3) {
+      get().showNotice("Select a star sequence (at least 3 frames) to stack");
+      return;
+    }
+    set({ stackPanelIds: chosen });
+  },
+  closeStackPanel() {
+    set({ stackPanelIds: null });
+  },
+  async markStarSequence(sceneId, on) {
+    try {
+      await window.photocull.updateScene(sceneId, { kind: on ? "astro" : "" });
+      await get().refresh();
+    } catch (err) {
+      set({ error: (err as Error).message });
+    }
   },
 
   async setStarsMany(ids, stars) {

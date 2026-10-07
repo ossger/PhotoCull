@@ -97,6 +97,7 @@ export async function showImageMenu(imageId: number): Promise<void> {
     ...cullItems(many ? "all" : ""),
     SEP,
   ];
+  if (many && ids.length >= 3) t.push({ id: "stack", label: `Stack ${ids.length} frames as stars…` }, SEP);
   if (many) {
     t.push({
       id: "compare",
@@ -127,6 +128,9 @@ export async function showImageMenu(imageId: number): Promise<void> {
     return;
   }
   switch (choice) {
+    case "stack":
+      s.openStackPanel(ids);
+      break;
     case "compare":
       s.toggleCompare();
       break;
@@ -176,8 +180,16 @@ export async function showSceneMenu(sceneId: number): Promise<void> {
     ...cullItems("all"),
     SEP,
   ];
+  const thisScene = st.scenes.find((sc) => sc.id === sceneId);
   if (many) t.push({ id: "merge", label: `Merge ${sceneIds.length} scenes` });
   else {
+    if (thisScene?.kind === "astro") {
+      t.push({ id: "stack", label: "Stack stars…", enabled: frames.length >= 3 });
+      t.push({ id: "unmarkAstro", label: "Not a star sequence" });
+    } else {
+      t.push({ id: "markAstro", label: "Mark as star sequence" });
+    }
+    t.push(SEP);
     t.push({ id: "rename", label: "Rename…" });
     t.push({ id: "mergePrev", label: "Merge with previous scene", enabled: prev != null });
     t.push({ id: "mergeNext", label: "Merge with next scene", enabled: next != null });
@@ -195,6 +207,15 @@ export async function showSceneMenu(sceneId: number): Promise<void> {
   switch (choice) {
     case "selectPhotos":
       s.setSelection(frames, frames[0] ?? null);
+      break;
+    case "stack":
+      s.openStackPanel(frames);
+      break;
+    case "markAstro":
+      await s.markStarSequence(sceneId, true);
+      break;
+    case "unmarkAstro":
+      await s.markStarSequence(sceneId, false);
       break;
     case "merge":
       await s.mergeScenes(sceneIds);

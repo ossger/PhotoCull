@@ -77,7 +77,10 @@ contextBridge.exposeInMainWorld("photocull", {
   mergeScenes: (sceneIds: number[]) => invoke("mergeScenes", sceneIds),
   splitScene: (sceneId: number, atImageId: number) =>
     invoke("splitScene", sceneId, atImageId),
-  updateScene: (sceneId: number, patch: { label?: string; cover_image_id?: number }) =>
+  updateScene: (
+    sceneId: number,
+    patch: { label?: string; cover_image_id?: number; kind?: string },
+  ) =>
     invoke("updateScene", sceneId, patch),
   moveImagesToScene: (imageIds: number[], sceneId: number | null) =>
     invoke("moveImagesToScene", imageIds, sceneId),
@@ -109,6 +112,10 @@ contextBridge.exposeInMainWorld("photocull", {
   thumbUrl: (rel: string) => fileUrl("thumb", rel),
   previewUrl: (rel: string) => fileUrl("preview", rel),
   fullUrl: (image: ImageRowLike) => fullUrlFor(image),
+  astroAnalyze: (ids: number[]) => invoke("astroAnalyze", ids),
+  astroStack: (ids: number[], options: { halfSize: boolean; foreground: string }) =>
+    invoke("astroStack", ids, options),
+  astroProgress: () => invoke("astroProgress"),
   onMenuAction: (cb: (id: string) => void) => subscribe<string>("menu:action", cb),
   revealPath: (p: string) => invoke("revealPath", p),
   setShootTitle: (name: string | null) => ipcRenderer.send("window:setShootTitle", name),
