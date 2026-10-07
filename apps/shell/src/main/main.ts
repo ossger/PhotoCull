@@ -456,13 +456,90 @@ function registerIpc(): void {
 
   ipcMain.handle("workerInfo", async () => sidecar.info);
 
+  ipcMain.handle("revealPath", (_e, p: string) => {
+    if (typeof p === "string" && p) shell.showItemInFolder(p);
+  });
+
+  ipcMain.on("window:setShootTitle", (e, name: string | null) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    if (win && win === mainWindow) {
+      win.setTitle(typeof name === "string" && name ? `${name} — PhotoCull` : "PhotoCull");
+    }
+  });
+
   registerFilmstripIpc();
 }
 
 // ----- bootstrap -----
 
+// The native menu only forwards ids; the renderer owns what each one does (see
+// renderer/useMenuActions.ts). Plain-letter accelerators are display-only
+// (registerAccelerator: false) so useHotkeys keeps them and typing in a text
+// field never triggers a menu item; ⌘-chords are real accelerators.
+function buildAppMenu(): void {
+  const send = (id: string) => () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("menu:action", id);
+  };
+  const item = (
+    label: string,
+    id: string,
+    accelerator?: string,
+    display = false,
+  ): Electron.MenuItemConstructorOptions => ({
+    label,
+    accelerator,
+    registerAccelerator: !display,
+    click: send(id),
+  });
+  const template: Electron.MenuItemConstructorOptions[] = [
+    ...(process.platform === "darwin" ? [{ role: "appMenu" as const }] : []),
+    {
+      label: "File",
+      submenu: [
+        item("Open Folder…", "file:open", "CmdOrCtrl+O"),
+        item("Import from Card…", "file:import", "CmdOrCtrl+I"),
+        item("Sort into Events…", "file:sortEvents"),
+        { type: "separator" },
+        item("Export Picks", "file:exportPicks", "CmdOrCtrl+E"),
+        item("Export Matches", "file:exportMatches"),
+        item("Export Selection", "file:exportSelection"),
+        { type: "separator" },
+        process.platform === "darwin" ? { role: "close" } : { role: "quit" },
+      ],
+    },
+    { role: "editMenu" },
+    {
+      label: "View",
+      submenu: [
+        item("Grid / Loupe", "view:toggleGrid", "G", true),
+        item("Compare", "view:compare", "C", true),
+        item("Scenes / Matches", "view:toggleScope", "M", true),
+        { type: "separator" },
+        item("Sort by Rank", "view:sortRank"),
+        item("Sort by Time", "view:sortTime"),
+        { type: "separator" },
+        item("Eye-zoom", "view:eyeZoom", "E", true),
+        item("Face Overlay", "view:faces", "F", true),
+        item("Filters", "view:filters", "/", true),
+        { type: "separator" },
+        item("Pop Out Filmstrip", "view:popOut"),
+        { type: "separator" },
+        { role: "togglefullscreen" },
+        ...(DEV_URL ? [{ role: "toggleDevTools" as const }] : []),
+      ],
+    },
+    { role: "windowMenu" },
+    {
+      role: "help",
+      submenu: [item("Keyboard Shortcuts", "help:shortcuts", "?", true)],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 app.whenReady().then(async () => {
   registerIpc();
+  buildAppMenu();
   try {
     await sidecar.start();
     await waitForHealth();

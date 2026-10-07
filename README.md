@@ -35,6 +35,7 @@ A cross-platform desktop culling app for photographers. Inspired by Narrative Se
 | E · F | eye-zoom loupe · face/eye overlay |
 | L | picks-only filter (in compare: sync zoom) |
 | / · M | filter panel · shoot-wide matches |
+| ? | all keyboard shortcuts |
 | Space / double-click | fit ↔ 1:1 |
 | Esc | leave crop → compare → selection |
 | Shift + ↑ / ↓ | extend the scene selection |

@@ -148,6 +148,10 @@ export function useHotkeys() {
           toggleFilterPanel();
           e.preventDefault();
           break;
+        case "?":
+          state.setShortcutsOpen(!state.shortcutsOpen);
+          e.preventDefault();
+          break;
         case "m":
         case "M":
           setViewScope(state.viewScope === "matches" ? "scenes" : "matches");
@@ -165,7 +169,9 @@ export function useHotkeys() {
         case "Escape":
           // Precedence: crop mode (handled above, returns early) > compare
           // mode > clear a multi-selection.
-          if (state.compareMode) {
+          if (state.shortcutsOpen) {
+            state.setShortcutsOpen(false);
+          } else if (state.compareMode) {
             exitCompare();
           } else {
             clearSelection();

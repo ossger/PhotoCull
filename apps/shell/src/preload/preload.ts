@@ -109,6 +109,9 @@ contextBridge.exposeInMainWorld("photocull", {
   thumbUrl: (rel: string) => fileUrl("thumb", rel),
   previewUrl: (rel: string) => fileUrl("preview", rel),
   fullUrl: (image: ImageRowLike) => fullUrlFor(image),
+  onMenuAction: (cb: (id: string) => void) => subscribe<string>("menu:action", cb),
+  revealPath: (p: string) => invoke("revealPath", p),
+  setShootTitle: (name: string | null) => ipcRenderer.send("window:setShootTitle", name),
   // Torn-off filmstrip window. main.ts checks which window each send came from.
   popOutFilmstrip: () => invoke("filmstrip:popOut"),
   dockFilmstrip: () => invoke("filmstrip:dock"),

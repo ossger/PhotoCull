@@ -253,6 +253,13 @@ export interface PhotoCullBridge {
   // shoot root (full_path is null); RAW/HEIC stream from the cache.
   fullUrl(image: ImageRow): string;
 
+  // Native application menu -> renderer: the id of the clicked item.
+  onMenuAction(cb: (id: string) => void): () => void;
+  // Show a file or folder in Finder / Explorer.
+  revealPath(path: string): Promise<void>;
+  // Tell main which shoot is open so the window title can show it (null = none).
+  setShootTitle(name: string | null): void;
+
   // Torn-off filmstrip window (see FilmstripAction above).
   // Main window: open/focus or close the pop-out, and learn its state.
   popOutFilmstrip(): Promise<void>;

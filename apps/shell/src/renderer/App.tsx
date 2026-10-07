@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Toolbar } from "./components/Toolbar";
 import { SceneList } from "./components/SceneList";
 import { Filmstrip } from "./components/Filmstrip";
@@ -7,10 +8,19 @@ import { CompareView } from "./components/CompareView";
 import { useStore } from "./store";
 import { useHotkeys } from "./useHotkeys";
 import { useFilmstripHost } from "./filmstripSync";
+import { useMenuActions } from "./useMenuActions";
+import { SelectionBar } from "./components/SelectionBar";
+import { ShortcutsOverlay } from "./components/ShortcutsOverlay";
+import { StatusBar } from "./components/StatusBar";
 
 export function App() {
   useHotkeys();
   useFilmstripHost();
+  useMenuActions();
+  const shootRoot = useStore((s) => s.shootRoot);
+  useEffect(() => {
+    window.photocull.setShootTitle(shootRoot ? shootRoot.split(/[\\/]/).filter(Boolean).pop() ?? null : null);
+  }, [shootRoot]);
   const compareMode = useStore((s) => s.compareMode);
   const viewMode = useStore((s) => s.viewMode);
   return (
@@ -29,48 +39,12 @@ export function App() {
           <div className="flex-1 min-h-0 flex">
             {compareMode ? <CompareView /> : viewMode === "grid" ? <GridView /> : <Loupe />}
           </div>
+          <SelectionBar />
           <Filmstrip />
-          <HotkeyHint />
+          <StatusBar />
         </div>
       </div>
+      <ShortcutsOverlay />
     </div>
   );
-}
-
-function HotkeyHint() {
-  const compareMode = useStore((s) => s.compareMode);
-  const cropMode = useStore((s) => s.cropMode);
-  return (
-    <div className="px-3 py-1.5 text-xs text-muted border-t border-line bg-panel2 flex gap-3 flex-wrap">
-      {cropMode ? (
-        <>
-          <Key>Drag</Key> rect/handles · <Key>Scroll</Key>/pinch zoom ·{" "}
-          <Key>Space+drag</Key> pan · <Key>Z</Key> fit/100% · <Key>Enter</Key> apply ·{" "}
-          <Key>Esc</Key> cancel · <Key>Shift+R</Key> clear crop · <Key>Right-click</Key> menu
-        </>
-      ) : compareMode ? (
-        <>
-          <Key>Click</Key> filmstrip add/remove · <Key>Scroll</Key> zoom ·{" "}
-          <Key>Drag</Key> pan · <Key>Dbl-click</Key> fit/1:1 · <Key>⤢</Key> open in loupe ·{" "}
-          <Key>L</Key> sync zoom · <Key>Esc</Key>/<Key>C</Key> exit compare
-        </>
-      ) : (
-        <>
-          <Key>←/→</Key> frame · <Key>↑/↓</Key> scene (<Key>Shift</Key> extends) ·{" "}
-          <Key>⌘/Ctrl+click</Key> toggle · <Key>Shift+click</Key> range ·{" "}
-          <Key>Right-click</Key> menu ·{" "}
-          <Key>Drag</Key> marquee · <Key>⌘/Ctrl+A</Key> select all ·{" "}
-          <Key>P</Key> pick · <Key>X</Key> reject · <Key>U</Key> unset ·{" "}
-          <Key>0-5</Key> stars · <Key>G</Key> grid · <Key>C</Key> compare ·{" "}
-          <Key>R</Key> crop · <Key>E</Key> eye-zoom ·{" "}
-          <Key>Space</Key>/dbl-click 1:1 · <Key>/</Key> filters ·{" "}
-          <Key>M</Key> matches
-        </>
-      )}
-    </div>
-  );
-}
-
-function Key({ children }: { children: React.ReactNode }) {
-  return <span className="font-mono text-ink">{children}</span>;
 }

@@ -1,16 +1,25 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useStore } from "../store";
 import { activeCriterionCount, matchesFilters } from "../filters";
 import { OrganizeModal } from "./OrganizeModal";
 import { EventSortModal } from "./EventSortModal";
 import { FilterPanel } from "./FilterPanel";
+import { Dropdown } from "./Dropdown";
+
+const BTN =
+  "flex-shrink-0 whitespace-nowrap px-3 py-1 rounded-md bg-panel2 hover:bg-line text-sm border border-line";
+const SEG = "flex items-center bg-panel2 border border-line rounded-md overflow-hidden text-xs";
+const segBtn = (active: boolean) =>
+  `px-2.5 py-1 ${active ? "bg-accent text-white" : "text-muted hover:text-ink"}`;
+
+function basename(p: string): string {
+  const parts = p.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] ?? p;
+}
 
 export function Toolbar() {
   const openFolder = useStore((s) => s.openFolder);
   const shootRoot = useStore((s) => s.shootRoot);
-  const progress = useStore((s) => s.progress);
-  const error = useStore((s) => s.error);
-  const notice = useStore((s) => s.notice);
   const images = useStore((s) => s.images);
   const sortMode = useStore((s) => s.sortMode);
   const setSortMode = useStore((s) => s.setSortMode);
@@ -22,264 +31,212 @@ export function Toolbar() {
   const viewScope = useStore((s) => s.viewScope);
   const setViewScope = useStore((s) => s.setViewScope);
   const selectedIds = useStore((s) => s.selectedIds);
-  const setPickMany = useStore((s) => s.setPickMany);
   const viewMode = useStore((s) => s.viewMode);
   const toggleViewMode = useStore((s) => s.toggleViewMode);
-
-  const [exporting, setExporting] = useState(false);
-  const [exportStatus, setExportStatus] = useState<string | null>(null);
-  const [importOpen, setImportOpen] = useState(false);
-  const [eventSortOpen, setEventSortOpen] = useState(false);
+  const compareMode = useStore((s) => s.compareMode);
+  const toggleCompare = useStore((s) => s.toggleCompare);
+  const exportPicks = useStore((s) => s.exportPicks);
+  const exportMatches = useStore((s) => s.exportMatches);
+  const exportImageIds = useStore((s) => s.exportImageIds);
+  const importOpen = useStore((s) => s.importOpen);
+  const setImportOpen = useStore((s) => s.setImportOpen);
+  const eventSortOpen = useStore((s) => s.eventSortOpen);
+  const setEventSortOpen = useStore((s) => s.setEventSortOpen);
 
   const pickCount = images.filter((i) => i.pick === 1).length;
   const filterCount = activeCriterionCount(filters);
-  // Whole-shoot match set — independent of scene selection, so "Export
-  // matches" and the Matches-mode status line agree with each other and with
-  // the flattened list Matches mode shows.
-  const matchIds = useMemo(
-    () => images.filter((i) => matchesFilters(i, filters, images)).map((i) => i.id),
+  const matchCount = useMemo(
+    () => images.filter((i) => matchesFilters(i, filters, images)).length,
     [images, filters],
   );
-  const matchCount = matchIds.length;
+  const hasShoot = shootRoot != null;
 
-  async function exportPicks() {
-    if (exporting || pickCount === 0) return;
-    setExporting(true);
-    setExportStatus("writing sidecars…");
-    try {
-      const result = await window.photocull.exportXmp(true);
-      setExportStatus(
-        result.failed > 0
-          ? `wrote ${result.written}, failed ${result.failed}`
-          : `wrote ${result.written} sidecar${result.written === 1 ? "" : "s"}`,
-      );
-    } catch (err) {
-      setExportStatus(`failed: ${(err as Error).message}`);
-    } finally {
-      setExporting(false);
-      // Clear status after a few seconds so it doesn't linger
-      setTimeout(() => setExportStatus(null), 5000);
-    }
+  // Grid / Loupe / Compare behave as one three-way switch even though compare
+  // is its own store flag layered over the grid-vs-loupe mode.
+  function showView(target: "grid" | "loupe") {
+    if (compareMode) toggleCompare();
+    if (viewMode !== target) toggleViewMode();
   }
-
-  async function exportMatches() {
-    if (exporting || matchCount === 0) return;
-    setExporting(true);
-    setExportStatus("writing sidecars…");
-    try {
-      const result = await window.photocull.exportXmp(false, matchIds);
-      setExportStatus(
-        result.failed > 0
-          ? `wrote ${result.written}, failed ${result.failed}`
-          : `wrote ${result.written} sidecar${result.written === 1 ? "" : "s"}`,
-      );
-    } catch (err) {
-      setExportStatus(`failed: ${(err as Error).message}`);
-    } finally {
-      setExporting(false);
-      setTimeout(() => setExportStatus(null), 5000);
-    }
-  }
-
-  const status = (() => {
-    if (exportStatus) return <span className="text-muted">{exportStatus}</span>;
-    if (notice) return <span className="text-muted">{notice}</span>;
-    if (error) return <span className="text-reject">{error}</span>;
-    if (progress.state === "running") {
-      const pct =
-        progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
-      return (
-        <span className="text-muted">
-          Ingesting {progress.done}/{progress.total} ({pct}%)
-        </span>
-      );
-    }
-    if (viewScope === "matches" && images.length > 0) {
-      return (
-        <span className="text-muted">
-          {matchCount} of {images.length} frames match
-        </span>
-      );
-    }
-    if (progress.state === "complete" && progress.total > 0) {
-      return <span className="text-muted">Loaded {progress.total} images</span>;
-    }
-    return <span className="text-muted">Ready</span>;
-  })();
 
   return (
     <>
-    <div className="h-12 px-4 flex items-center justify-between gap-3 border-b border-line bg-panel">
-      <div className="flex items-center gap-3 min-w-0">
-        <span className="font-semibold tracking-tight">PhotoCull</span>
-        <button
-          type="button"
-          onClick={openFolder}
-          className="flex-shrink-0 whitespace-nowrap px-3 py-1 rounded-md bg-panel2 hover:bg-line text-sm border border-line"
-        >
-          Open folder…
-        </button>
-        <button
-          type="button"
-          onClick={() => setImportOpen(true)}
-          title="Sort a memory card into your dated library before culling"
-          className="flex-shrink-0 whitespace-nowrap px-3 py-1 rounded-md bg-panel2 hover:bg-line text-sm border border-line"
-        >
-          Import…
-        </button>
-        <button
-          type="button"
-          onClick={() => setEventSortOpen(true)}
-          title="Split a card dump folder into one subfolder per event"
-          className="flex-shrink-0 whitespace-nowrap px-3 py-1 rounded-md bg-panel2 hover:bg-line text-sm border border-line"
-        >
-          Sort into events…
-        </button>
-        <button
-          type="button"
-          onClick={exportPicks}
-          disabled={exporting || pickCount === 0}
-          title={
-            pickCount === 0
-              ? "No picks yet — press P on frames you want to keep"
-              : `Write XMP sidecars for ${pickCount} picked frame${pickCount === 1 ? "" : "s"}`
-          }
-          className="flex-shrink-0 whitespace-nowrap px-3 py-1 rounded-md bg-panel2 hover:bg-line disabled:opacity-40 disabled:cursor-not-allowed text-sm border border-line"
-        >
-          {exporting ? "Exporting…" : `Export picks (${pickCount})`}
-        </button>
-        <button
-          type="button"
-          onClick={exportMatches}
-          disabled={exporting || matchCount === 0}
-          title={
-            matchCount === 0
-              ? "No frames match the current filter"
-              : `Write XMP sidecars for ${matchCount} matching frame${matchCount === 1 ? "" : "s"}`
-          }
-          className="flex-shrink-0 whitespace-nowrap px-3 py-1 rounded-md bg-panel2 hover:bg-line disabled:opacity-40 disabled:cursor-not-allowed text-sm border border-line"
-        >
-          {exporting ? "Exporting…" : `Export matches (${matchCount})`}
-        </button>
-        {shootRoot && (
-          <span className="text-muted text-sm truncate max-w-[42rem]" title={shootRoot}>
-            {shootRoot}
-          </span>
-        )}
-      </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        {selectedIds.length > 1 && (
-          <div className="flex items-center gap-1.5 bg-panel2 border border-line rounded-md pl-2 pr-1 py-1 text-xs">
-            <span className="text-muted">{selectedIds.length} selected</span>
+      <div className="h-12 px-4 flex items-center gap-3 border-b border-line bg-panel">
+        {/* Left: where you are + getting photos in */}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {hasShoot ? (
             <button
               type="button"
-              onClick={() => setPickMany(selectedIds, 1)}
-              className="px-2 py-0.5 rounded bg-pick/20 text-pick hover:bg-pick/30"
-              title="Pick all selected frames (P)"
+              onClick={() => void window.photocull.revealPath(shootRoot)}
+              title={`${shootRoot}\nClick to show in Finder`}
+              className="min-w-0 truncate max-w-[18rem] font-semibold tracking-tight hover:text-accent"
             >
-              Pick
+              {basename(shootRoot)}
+            </button>
+          ) : (
+            <span className="font-semibold tracking-tight">PhotoCull</span>
+          )}
+          {hasShoot ? (
+            <Dropdown
+              buttonClass={BTN}
+              title="Open a folder, import a card, or sort a card dump"
+              trigger={<>Open ▾</>}
+              items={[
+                { label: "Open folder…", hint: "⌘O", onSelect: () => void openFolder() },
+                { label: "Import from card…", hint: "⌘I", onSelect: () => setImportOpen(true) },
+                { label: "Sort into events…", onSelect: () => setEventSortOpen(true) },
+              ]}
+            />
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => void openFolder()}
+                className="flex-shrink-0 whitespace-nowrap px-3 py-1 rounded-md bg-accent text-white text-sm hover:opacity-90"
+              >
+                Open folder…
+              </button>
+              <button
+                type="button"
+                onClick={() => setImportOpen(true)}
+                title="Sort a memory card into your dated library before culling"
+                className={BTN}
+              >
+                Import…
+              </button>
+              <button
+                type="button"
+                onClick={() => setEventSortOpen(true)}
+                title="Split a card dump folder into one subfolder per event"
+                className={BTN}
+              >
+                Sort into events…
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Center: how you're looking at it */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className={SEG}>
+            <button
+              type="button"
+              onClick={() => showView("grid")}
+              className={segBtn(!compareMode && viewMode === "grid")}
+              title="Contact-sheet grid, for marquee (drag) multi-select (G)"
+            >
+              Grid
             </button>
             <button
               type="button"
-              onClick={() => setPickMany(selectedIds, -1)}
-              className="px-2 py-0.5 rounded bg-reject/20 text-reject hover:bg-reject/30"
-              title="Reject all selected frames (X)"
+              onClick={() => showView("loupe")}
+              className={segBtn(!compareMode && viewMode === "loupe")}
+              title="Single-frame loupe (G)"
             >
-              Reject
+              Loupe
             </button>
             <button
               type="button"
-              onClick={() => setPickMany(selectedIds, 0)}
-              className="px-2 py-0.5 rounded text-muted hover:text-ink hover:bg-line"
-              title="Unset pick on all selected frames (U)"
+              onClick={() => !compareMode && toggleCompare()}
+              className={segBtn(compareMode)}
+              title="Compare up to four frames side by side (C)"
             >
-              Unset
+              Compare
             </button>
           </div>
-        )}
-        <div className="flex items-center bg-panel2 border border-line rounded-md overflow-hidden text-xs">
-          <button
-            type="button"
-            onClick={() => viewMode !== "grid" && toggleViewMode()}
-            className={`px-2.5 py-1 ${viewMode === "grid" ? "bg-accent text-white" : "text-muted hover:text-ink"}`}
-            title="Contact-sheet grid, for marquee (drag) multi-select (G)"
-          >
-            Grid
-          </button>
-          <button
-            type="button"
-            onClick={() => viewMode !== "loupe" && toggleViewMode()}
-            className={`px-2.5 py-1 ${viewMode === "loupe" ? "bg-accent text-white" : "text-muted hover:text-ink"}`}
-            title="Single-frame loupe (G)"
-          >
-            Loupe
-          </button>
+          <div className={SEG}>
+            <button
+              type="button"
+              onClick={() => viewScope !== "scenes" && setViewScope("scenes")}
+              className={segBtn(viewScope === "scenes")}
+              title="Browse scene by scene"
+            >
+              Scenes
+            </button>
+            <button
+              type="button"
+              onClick={() => viewScope !== "matches" && setViewScope("matches")}
+              className={segBtn(viewScope === "matches")}
+              title="Flatten the whole shoot into one filtered, ranked list (M)"
+            >
+              Matches
+            </button>
+          </div>
         </div>
-        <div className="flex items-center bg-panel2 border border-line rounded-md overflow-hidden text-xs">
+
+        {/* Right: narrowing, ordering, and getting picks out */}
+        <div className="flex items-center gap-2 flex-1 justify-end">
+          <Dropdown
+            align="right"
+            buttonClass="text-xs rounded-md px-2.5 py-1 border border-line bg-panel2 text-muted hover:text-ink whitespace-nowrap"
+            title="How frames are ordered within each scene"
+            trigger={<>Sort: {sortMode === "rank" ? "Rank" : "Time"} ▾</>}
+            items={[
+              { label: "Rank (best score first)", checked: sortMode === "rank", onSelect: () => setSortMode("rank") },
+              { label: "Time (capture order)", checked: sortMode === "time", onSelect: () => setSortMode("time") },
+            ]}
+          />
           <button
+            id="filter-toggle-btn"
             type="button"
-            onClick={() => viewScope !== "scenes" && setViewScope("scenes")}
-            className={`px-2.5 py-1 ${viewScope === "scenes" ? "bg-accent text-white" : "text-muted hover:text-ink"}`}
-            title="Browse scene by scene"
+            onClick={toggleFilterPanel}
+            className={`flex-shrink-0 text-xs rounded-md px-2.5 py-1 border bg-panel2 transition-colors ${
+              filterPanelOpen || filterCount > 0
+                ? "border-accent text-accent"
+                : "border-line text-muted hover:text-ink"
+            }`}
+            title="Advanced culling filters (/)"
           >
-            Scenes
+            Filter{filterCount > 0 ? ` (${filterCount})` : ""}
           </button>
           <button
             type="button"
-            onClick={() => viewScope !== "matches" && setViewScope("matches")}
-            className={`px-2.5 py-1 ${viewScope === "matches" ? "bg-accent text-white" : "text-muted hover:text-ink"}`}
-            title="Flatten the whole shoot into one filtered, ranked list (M)"
+            onClick={toggleEyeZoom}
+            aria-pressed={eyeZoom}
+            className={`flex-shrink-0 text-xs rounded-md px-2.5 py-1 border bg-panel2 transition-colors ${
+              eyeZoom ? "border-accent text-accent" : "border-line text-muted hover:text-ink"
+            }`}
+            title={`Auto-zoom the loupe to the subject's eyes (E) — ${eyeZoom ? "on" : "off"}`}
           >
-            Matches
+            👁 Eyes
           </button>
-        </div>
-        <button
-          type="button"
-          onClick={toggleEyeZoom}
-          className={`text-xs rounded-md px-2.5 py-1 border bg-panel2 transition-colors ${
-            eyeZoom ? "border-accent text-accent" : "border-line text-muted hover:text-ink"
-          }`}
-          title="Auto-zoom the loupe to the subject's eyes on each frame (E)"
-        >
-          Eye-zoom {eyeZoom ? "on" : "off"}
-        </button>
-        <button
-          id="filter-toggle-btn"
-          type="button"
-          onClick={toggleFilterPanel}
-          className={`text-xs rounded-md px-2.5 py-1 border bg-panel2 transition-colors ${
-            filterPanelOpen || filterCount > 0
-              ? "border-accent text-accent"
-              : "border-line text-muted hover:text-ink"
-          }`}
-          title="Advanced culling filters (/)"
-        >
-          Filter{filterCount > 0 ? ` (${filterCount})` : ""}
-        </button>
-        <div className="flex items-center bg-panel2 border border-line rounded-md overflow-hidden text-xs">
-          <button
-            type="button"
-            onClick={() => setSortMode("rank")}
-            className={`px-2.5 py-1 ${sortMode === "rank" ? "bg-accent text-white" : "text-muted hover:text-ink"}`}
-            title="Sort each scene by AI score, best first"
-          >
-            Rank
-          </button>
-          <button
-            type="button"
-            onClick={() => setSortMode("time")}
-            className={`px-2.5 py-1 ${sortMode === "time" ? "bg-accent text-white" : "text-muted hover:text-ink"}`}
-            title="Sort each scene chronologically"
-          >
-            Time
-          </button>
+          <div className="flex items-stretch flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => void exportPicks()}
+              disabled={!hasShoot || pickCount === 0}
+              title={
+                pickCount === 0
+                  ? "No picks yet — press P on frames you want to keep"
+                  : `Write XMP sidecars for ${pickCount} picked frame${pickCount === 1 ? "" : "s"}`
+              }
+              className="whitespace-nowrap pl-3 pr-2.5 py-1 rounded-l-md bg-accent text-white text-sm hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Export picks ({pickCount})
+            </button>
+            <Dropdown
+              align="right"
+              title="More export options"
+              buttonClass="h-full px-2 rounded-r-md bg-accent text-white text-sm border-l border-white/30 hover:opacity-90"
+              trigger={<>▾</>}
+              items={[
+                {
+                  label: `Export matches (${matchCount})`,
+                  disabled: !hasShoot || matchCount === 0,
+                  onSelect: () => void exportMatches(),
+                },
+                {
+                  label: `Export selection (${selectedIds.length})`,
+                  disabled: selectedIds.length === 0,
+                  onSelect: () => void exportImageIds(selectedIds),
+                },
+              ]}
+            />
+          </div>
         </div>
       </div>
-      <div className="text-sm text-right truncate max-w-[16rem] flex-shrink-0">{status}</div>
-    </div>
-    {importOpen && <OrganizeModal onClose={() => setImportOpen(false)} />}
-    {eventSortOpen && <EventSortModal onClose={() => setEventSortOpen(false)} />}
-    {filterPanelOpen && <FilterPanel />}
+      {importOpen && <OrganizeModal onClose={() => setImportOpen(false)} />}
+      {eventSortOpen && <EventSortModal onClose={() => setEventSortOpen(false)} />}
+      {filterPanelOpen && <FilterPanel />}
     </>
   );
 }

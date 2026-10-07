@@ -172,7 +172,17 @@ interface Store {
   resetSceneGrouping: () => Promise<void>;
   setRenamingScene: (id: number | null) => void;
   exportImageIds: (ids: number[]) => Promise<void>;
+  exportPicks: () => Promise<void>;
+  exportMatches: () => Promise<void>;
   showNotice: (msg: string) => void;
+
+  // Which top-level dialogs are open (driven by the toolbar, menu and hotkeys).
+  importOpen: boolean;
+  eventSortOpen: boolean;
+  shortcutsOpen: boolean;
+  setImportOpen: (open: boolean) => void;
+  setEventSortOpen: (open: boolean) => void;
+  setShortcutsOpen: (open: boolean) => void;
 }
 
 function sortByMode(images: ImageRow[], mode: SortMode): ImageRow[] {
@@ -355,6 +365,9 @@ export const useStore = create<Store>((set, get) => ({
   error: null,
   notice: null,
   renamingSceneId: null,
+  importOpen: false,
+  eventSortOpen: false,
+  shortcutsOpen: false,
 
   async openFolder() {
     set({ error: null });
@@ -974,6 +987,43 @@ export const useStore = create<Store>((set, get) => ({
     } catch (err) {
       get().showNotice(`export failed: ${(err as Error).message}`);
     }
+  },
+
+  async exportPicks() {
+    const ids = get().images.filter((i) => i.pick === 1).map((i) => i.id);
+    if (ids.length === 0) {
+      get().showNotice("no picks yet — press P on frames you want to keep");
+      return;
+    }
+    get().showNotice("writing sidecars…");
+    try {
+      const r = await window.photocull.exportXmp(true);
+      get().showNotice(
+        r.failed > 0 ? `wrote ${r.written}, failed ${r.failed}` : `wrote ${r.written} sidecar${r.written === 1 ? "" : "s"}`,
+      );
+    } catch (err) {
+      get().showNotice(`export failed: ${(err as Error).message}`);
+    }
+  },
+
+  async exportMatches() {
+    const { images, filters } = get();
+    const ids = images.filter((i) => matchesFilters(i, filters, images)).map((i) => i.id);
+    if (ids.length === 0) {
+      get().showNotice("no frames match the current filter");
+      return;
+    }
+    await get().exportImageIds(ids);
+  },
+
+  setImportOpen(open) {
+    set({ importOpen: open });
+  },
+  setEventSortOpen(open) {
+    set({ eventSortOpen: open });
+  },
+  setShortcutsOpen(open) {
+    set({ shortcutsOpen: open });
   },
 
   async setStarsMany(ids, stars) {

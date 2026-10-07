@@ -4,6 +4,13 @@ All notable changes to PhotoCull. Versions correspond to git tags (`v0.3.0`, …
 
 ## Unreleased
 
+- **Cleaner top bar and a real menu.** The bar now reads left to right: the shoot
+  name and an Open menu, the view switches (Grid / Loupe / Compare, Scenes /
+  Matches), then Sort, Filter, Eyes, and a single Export button with matches and
+  selection under its arrow. The File and View menus carry everything else, with
+  ⌘O, ⌘I and ⌘E. Status and ingest progress moved to a bottom bar, the multi-select
+  Pick/Reject/Unset actions to a bar above the filmstrip, and the long hint line
+  to a `?` shortcuts sheet. The window title shows the open shoot.
 - **Zoom while cropping.** Scroll or pinch to zoom the picture under the crop
   box. Pan with Space+drag or middle-drag, and press Z to flip between fit and 100%.
 - **Multi-select scenes.** ⌘/Ctrl-click and Shift-click pick several scenes in
