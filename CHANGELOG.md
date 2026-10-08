@@ -2,7 +2,11 @@
 
 All notable changes to PhotoCull. Versions correspond to git tags (`v0.3.0`, …).
 
-## Unreleased
+## 0.4.0 — 2026-10-08
+
+Star stacking, a regrouped top bar with a native menu, scene editing, and a
+compare/filmstrip overhaul. The Apple Silicon build is rebuilt so it runs on
+macOS 13 Ventura or newer (0.3.1 effectively required macOS 26).
 
 - **Star stacking.** Untracked, tripod star sequences (long exposures shot back
   to back with the same settings) are detected on open and kept together as one

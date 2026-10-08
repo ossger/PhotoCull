@@ -8,9 +8,9 @@ ships, move it to **Done** with the date and add a line to `CHANGELOG.md`.
 
 - [#1](https://github.com/ossger/PhotoCull/issues/1) **Notarize and publish the Intel (x64) macOS build.** It's signed but blocked
   on moving the notarization credential into a keychain profile.
-- [#2](https://github.com/ossger/PhotoCull/issues/2) **Rebuild arm64 for older macOS.** The published `v0.3.1` arm64 build
-  effectively requires macOS 26, so set `mac.minimumSystemVersion` to the real
-  floor once it's rebuilt.
+- [#2](https://github.com/ossger/PhotoCull/issues/2) **Rebuild arm64 for older macOS.** Rebuilt as `v0.4.0` on a
+  python-build-standalone interpreter (floor now macOS 13.0, pinned in
+  `mac.minimumSystemVersion`); waiting on notarization and publish.
 - [#3](https://github.com/ossger/PhotoCull/issues/3) **Fix the shell lint gate.** `npm --workspace apps/shell run lint` calls
   `eslint`, but there's no ESLint dependency or config in the repo.
 

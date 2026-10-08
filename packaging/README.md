@@ -2,11 +2,15 @@
 
 Producing a double-clickable app (Windows `.exe` installer / macOS `.dmg`).
 
-> **Status: validated end-to-end on Windows and on macOS.** macOS arm64 shipped
-> signed + notarized as `v0.3.1` (2026-08-28); macOS **x64 (Intel)** built and
-> verified 2026-09-03 — signed, sidecar boots from inside the bundle, awaiting
-> notarization on a rotated credential (SD-0101). `npm run dev` is still the
-> supported way to run PhotoCull day to day.
+> **Status: validated end-to-end on Windows and on macOS.** `v0.3.1` shipped
+> signed + notarized for macOS arm64 (2026-08-28). `v0.4.0` arm64 was rebuilt
+> 2026-10-08 on python-build-standalone (see "the minimum-OS trap"): signed,
+> sidecar boots from inside the bundle, measured floor **macOS 13.0**,
+> `mac.minimumSystemVersion` now pinned to match. It awaits notarization:
+> the `photocull-notary` keychain profile no longer exists on this Mac, so the
+> hooks skip, and an un-notarized DMG is not published. macOS **x64 (Intel)**
+> `v0.3.1` is built and signed, likewise un-notarized (SD-0101).
+> `npm run dev` is still the supported way to run PhotoCull day to day.
 >
 > **Build on the target OS — with one exception.** electron-builder does not
 > cross-compile the native Python sidecar, so the Windows app must be built on
@@ -123,6 +127,14 @@ cd apps/shell && npx electron-builder --mac --x64
 > silently builds for the **host** architecture. The failure mode is nasty: an
 > arm64 app wrapped around an x86_64 worker, which only breaks at sidecar
 > spawn. Call `npx electron-builder --mac --x64` directly from `apps/shell`.
+
+### Building the arm64 artifact
+
+Use the same recipe with the `aarch64-apple-darwin` python-build-standalone
+tarball, no Rosetta and no `arch -x86_64`, and the same pins. Do not freeze
+with Homebrew's Python: that is what put `minos 26.0` into the published
+`v0.3.1` arm64 build. After `npm run dist`, run the `minos` measurement above
+and the sidecar `/health` check from inside the `.app`.
 
 Building the two architectures back to back overwrites
 `apps/worker/dist-bin/` — it is a single path with no arch suffix. Freeze,

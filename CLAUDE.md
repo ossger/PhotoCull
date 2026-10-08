@@ -48,7 +48,10 @@ Two paths reach the worker from the renderer:
    `openShoot`, `shootProgress`, `listImages`, `listScenes`, `regroupScenes`,
    `exportXmp`, `organizePlan`, `organizeRun`, `organizeProgress`, `eventsPlan`,
    `eventsRun`, `eventsProgress`, `eventsUndo`, `setPick`,
-   `setStars`, `setColor`, `setCrop`, and the `thumbUrl`/`previewUrl`/`fullUrl`/
+   `setStars`, `setColor`, `setCrop`, the `*Many` batch variants of the three
+   setters, `mergeScenes`/`splitScene`/`moveImagesToScene`, `popupMenu`/
+   `onMenuAction`, `revealPath`, `setShootTitle`, the star-stacking trio
+   `astroAnalyze`/`astroStack`/`astroProgress`, and the `thumbUrl`/`previewUrl`/`fullUrl`/
    `eventThumbUrl` URL builders (the last loads `/events/thumb` for a folder
    that isn't open as a shoot).
    Not worker-bound: the **filmstrip pop-out** bridge (`popOutFilmstrip`,
