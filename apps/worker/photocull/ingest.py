@@ -8,24 +8,25 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
-from typing import Iterable
 
 import cv2
 import imagehash
 import numpy as np
 import rawpy
-from PIL import Image, ExifTags, ImageOps
+from PIL import ExifTags, Image, ImageOps
 
-from .scoring import sharpness as sharpness_score
+from . import focus_meta
+from . import raw as raw_decode
+from .scoring import aesthetic as aesthetic_score
 from .scoring import exposure as exposure_score
 from .scoring import faces as faces_score
-from .scoring import aesthetic as aesthetic_score
-from .scoring.aggregate import Scores, overall as overall_score
-from . import raw as raw_decode
-from . import focus_meta
+from .scoring import sharpness as sharpness_score
+from .scoring.aggregate import Scores
+from .scoring.aggregate import overall as overall_score
 
 log = logging.getLogger(__name__)
 
@@ -138,7 +139,7 @@ def _exif_dict(img: Image.Image) -> dict[str, object]:
     ):
         try:
             ifd = raw.get_ifd(ifd_id)
-        except Exception:
+        except Exception:  # noqa: BLE001 - a missing/corrupt EXIF block just means no tags
             ifd = None
         if ifd:
             for k, v in ifd.items():
@@ -295,9 +296,8 @@ def ingest_one(
         if ext in RAW_EXTS:
             full_dir = cache_dir / "full"
             full_path = full_dir / f"{stem}.jpg"
-            if not full_path.exists():
-                if not raw_decode.write_embedded_jpeg(src, full_path):
-                    raw_decode.render_full_demosaic(src, full_path)
+            if not full_path.exists() and not raw_decode.write_embedded_jpeg(src, full_path):
+                raw_decode.render_full_demosaic(src, full_path)
             ingested.full_path = full_path.relative_to(cache_dir).as_posix()
         elif ext in HEIC_EXTS:
             full_dir = cache_dir / "full"

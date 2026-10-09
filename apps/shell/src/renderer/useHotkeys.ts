@@ -121,6 +121,9 @@ export function useHotkeys() {
         case "c":
         case "C":
           toggleCompare();
+          // Without this, macOS also hands the key to the View ▸ Compare menu
+          // item, which toggles compare a second time (flash, then gone).
+          e.preventDefault();
           break;
         case "f":
         case "F":

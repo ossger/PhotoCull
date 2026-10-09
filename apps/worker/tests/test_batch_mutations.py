@@ -12,6 +12,7 @@ from pathlib import Path
 import piexif
 import pytest
 from PIL import Image
+from pydantic import ValidationError
 
 from photocull import server
 from photocull.server import BatchColorBody, BatchPickBody, BatchStarsBody
@@ -129,5 +130,5 @@ def test_batch_color_route(shoot: Shoot, monkeypatch: pytest.MonkeyPatch):
 
 
 def test_batch_pick_route_rejects_out_of_range_at_the_model():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         BatchPickBody(image_ids=[1], pick=7)

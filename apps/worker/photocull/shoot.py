@@ -10,22 +10,26 @@ import dataclasses
 import logging
 import sqlite3
 import threading
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
-from .db import connect, initialise_shoot, upsert_image
-from .ingest import group_sources, ingest_one, walk_folder
 from . import focus_meta
 from . import scenes as scenes_mod
 from .astro import analyze as astro_analyze
 from .astro import stack as astro_stack
+from .db import connect, initialise_shoot, upsert_image
 from .export import xmp as xmp_export
+from .ingest import group_sources, ingest_one, walk_folder
 
 log = logging.getLogger(__name__)
 
 CACHE_DIRNAME = ".photocull"
 DB_FILENAME = "shoot.db"
+# `current` value ingest() reports once every file is decoded and only sibling
+# pruning + scene grouping remain. The server maps it to progress phase "grouping".
+GROUPING_LABEL = "grouping scenes"
 
 
 class Shoot:
@@ -39,6 +43,15 @@ class Shoot:
         self.conn: sqlite3.Connection = connect(self.db_path)
         initialise_shoot(self.conn, self.root)
         self._lock = threading.Lock()  # SQLite is fine but our writes assume serial
+        # Set by cancel()/close(): a running ingest() stops decoding and returns
+        # without touching the DB again (a newer shoot has taken over).
+        self._cancel = threading.Event()
+        # Relative paths the last ingest() couldn't read (for the UI's notice).
+        self.last_failures: list[str] = []
+
+    def cancel(self) -> None:
+        """Ask a running ingest() to stop at the next file boundary."""
+        self._cancel.set()
 
     # ---- ingest ----
 
@@ -47,7 +60,8 @@ class Shoot:
         progress: Callable[[int, int, str], None] | None = None,
         max_workers: int = 4,
     ) -> int:
-        """Walk the folder, ingest every supported image, return the count.
+        """Walk the folder, ingest every supported image, return how many were
+        ingested (files that couldn't be read are listed in `last_failures`).
 
         RAW+JPEG siblings (same folder, same stem) collapse to a single
         canonical file — the RAW — so each capture is culled once. Any
@@ -56,6 +70,8 @@ class Shoot:
         files, shadowed, shadow_map = group_sources(walk_folder(self.root))
         total = len(files)
         log.info("ingest: %d files under %s", total, self.root)
+        failures: list[str] = []
+        self.last_failures = failures
         if total == 0:
             return 0
 
@@ -65,23 +81,38 @@ class Shoot:
         focus_map = focus_meta.read_focus_batch(files)
 
         def _do(p: Path):
+            if self._cancel.is_set():
+                return None
             try:
                 return ingest_one(p, self.root, self.cache_dir, focus=focus_map.get(p))
             except Exception as exc:  # noqa: BLE001 - log and keep going
                 log.warning("ingest failed for %s: %s", p, exc)
+                try:
+                    failures.append(p.relative_to(self.root).as_posix())
+                except ValueError:
+                    failures.append(p.name)
                 return None
 
         done = 0
+        ingested_count = 0
         with ThreadPoolExecutor(max_workers=max_workers) as ex:
             futures = {ex.submit(_do, p): p for p in files}
             for fut in as_completed(futures):
+                if self._cancel.is_set():
+                    ex.shutdown(wait=True, cancel_futures=True)
+                    return ingested_count
                 ingested = fut.result()
                 done += 1
                 if ingested is not None:
                     with self._lock:
+                        if self._cancel.is_set():
+                            return ingested_count
                         upsert_image(self.conn, dataclasses.asdict(ingested))
+                    ingested_count += 1
                 if progress is not None:
                     progress(done, total, str(futures[fut]))
+        if self._cancel.is_set():
+            return ingested_count
         # Drop rows for siblings a previous ingest had inserted before pairing
         # existed (e.g. the JPEG next to a RAW). Before dropping each one, carry
         # its pick/star/color/crop over to the canonical RAW row if the RAW
@@ -143,9 +174,13 @@ class Shoot:
                     "DELETE FROM image WHERE rel_path = ?", shadow_rels
                 )
         # Now that every row has captured_at + phash, group into scenes.
+        if progress is not None:
+            progress(total, total, GROUPING_LABEL)
         with self._lock:
+            if self._cancel.is_set():
+                return ingested_count
             scenes_mod.regroup(self.conn)
-        return done
+        return ingested_count
 
     # ---- queries ----
 
@@ -223,7 +258,7 @@ class Shoot:
     def stack_astro(
         self,
         image_ids: list[int],
-        options: "astro_stack.StackOptions | None" = None,
+        options: astro_stack.StackOptions | None = None,
         progress: Callable[[int, int, str], None] | None = None,
     ) -> dict[str, Any]:
         """Stack frames into a 16-bit TIFF under <shoot>/Stacks/ (never overwrites).
@@ -419,5 +454,6 @@ class Shoot:
         return self.root / rel
 
     def close(self) -> None:
+        self._cancel.set()
         with self._lock:
             self.conn.close()

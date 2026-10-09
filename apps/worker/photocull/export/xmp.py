@@ -120,7 +120,7 @@ def _write_argfile(fields: list[XmpFields], argfile: Path) -> None:
             ]
         # Tell exiftool which file these args apply to. -o targets the sidecar
         # specifically (without -o it would try to embed in the source file).
-        lines.append(f"-o")
+        lines.append("-o")
         lines.append(str(sidecar))
         lines.append(str(f.source_path))
         lines.append("-execute")
@@ -165,7 +165,9 @@ def write_sidecars(fields: list[XmpFields]) -> ExportResult:
             "-q", "-q",
         ]
         log.info("exiftool: writing %d sidecars", len(fields))
-        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", check=False
+        )
 
     sidecars: list[Path] = []
     written = 0

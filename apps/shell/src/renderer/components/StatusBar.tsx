@@ -29,7 +29,9 @@ export function StatusBar() {
   else if (running)
     status = (
       <span className="text-ink">
-        Ingesting {progress.done}/{progress.total} ({pct}%)
+        {progress.phase === "grouping"
+          ? "Grouping scenes…"
+          : `Ingesting ${progress.done}/${progress.total} (${pct}%)`}
       </span>
     );
   else if (viewScope === "matches" && images.length > 0)
@@ -38,8 +40,25 @@ export function StatusBar() {
         {matchCount} of {images.length} frames match
       </span>
     );
-  else if (progress.state === "complete" && progress.total > 0)
-    status = <span>{progress.total} images</span>;
+  else if (progress.state === "complete" && (progress.total > 0 || progress.failed))
+    status = (
+      <span>
+        {progress.total} images
+        {progress.failed ? (
+          <span
+            className="text-reject ml-2"
+            title={[
+              ...(progress.failed_files ?? []),
+              ...(progress.failed > (progress.failed_files?.length ?? 0)
+                ? [`…and ${progress.failed - (progress.failed_files?.length ?? 0)} more`]
+                : []),
+            ].join("\n")}
+          >
+            · {progress.failed} couldn&apos;t be read
+          </span>
+        ) : null}
+      </span>
+    );
   else status = <span>Ready</span>;
 
   const hint = cropMode

@@ -32,10 +32,10 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Callable
 
 from . import models
 from .organize import HEIC_EXTS, JPEG_EXTS, RAW_EXTS
@@ -258,7 +258,7 @@ def read_capture_times(paths: list[Path]) -> dict[Path, datetime]:
         ]
         try:
             proc = subprocess.run(
-                cmd, capture_output=True, text=True, encoding="utf-8", timeout=900
+                cmd, capture_output=True, text=True, encoding="utf-8", timeout=900, check=False
             )
         except Exception as exc:  # noqa: BLE001
             log.warning("exiftool failed to run — using file dates only: %s", exc)

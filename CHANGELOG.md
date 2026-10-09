@@ -2,6 +2,42 @@
 
 All notable changes to PhotoCull. Versions correspond to git tags (`v0.3.0`, …).
 
+## 0.4.1 — 2026-10-09
+
+- **Fixed: the C key flashed Compare and immediately closed it on macOS.** The
+  keypress reached both the hotkey handler and the View ▸ Compare menu item, so
+  compare toggled twice. The hotkey now consumes the key, and menu items that
+  only display a plain-letter shortcut ignore keyboard-triggered clicks.
+- **Fixed: photos missing after opening a folder.** Ingest reported "complete"
+  before scenes were grouped, so the last refresh could miss frames that hadn't
+  been assigned a scene yet. An ingest left over from a previous open could also
+  end the new one early. Files that can't be read are now counted in the status
+  bar instead of silently skipped, and an ingest crash shows an error.
+- **Fixed: eye-zoom snapped back after you zoomed out.** When the full-resolution
+  image finished loading it re-applied the eye zoom over your own zoom. The
+  zoom chip now says "Eye zoom" when E caused it, and tiny faces with no
+  detected eyes (usually false hits on scenery) no longer trigger it.
+- **Hardened: loupe image sizing on frame switch.** A stale full-res load flag
+  or a late image-load event could size the picture from the previous frame.
+- **Fixed: opening a second folder mid-ingest.** The first folder's ingest is
+  now cancelled and drained before the new one starts, instead of silently
+  decoding on in the background (or fighting the new run over the same
+  database). Progress updates are atomic, so the status bar can no longer show
+  a mix of two folders, or "complete" without the unreadable-file count.
+- **Fixed: ingest counts.** The status bar reports images actually ingested
+  (previously unreadable files were counted too), lists unreadable files by
+  folder path, notes when the list is truncated, and no longer shows the count
+  going backwards while scenes group.
+- **Fixed: eye-zoom stays put on a click, and tiny faces count.** Only a real
+  drag or a zoom after the frame has loaded takes the view away from eye-zoom;
+  small faces with no eye points (group shots) are no longer filtered out. A
+  late full-res load from the previous frame can no longer blank the next one.
+- **Fixed: menu shortcuts outside the main window** (e.g. the popped-out
+  filmstrip) work again, and a programmatic menu click no longer throws.
+- **Housekeeping:** eslint is installed and configured (the lint gate now
+  runs), `react-window` removed, ruff rule set pinned in `pyproject.toml`,
+  fire-and-forget worker tasks kept referenced, lockfile version synced.
+
 ## 0.4.0 — 2026-10-08
 
 Star stacking, a regrouped top bar with a native menu, scene editing, and a

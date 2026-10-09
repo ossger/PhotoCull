@@ -482,7 +482,9 @@ export const useStore = create<Store>((set, get) => ({
         const progress = await window.photocull.shootProgress();
         set({ progress });
         await get().refresh();
-        if (progress.state !== "complete") {
+        if (progress.state === "error") {
+          set({ error: progress.error ?? "Ingest failed" });
+        } else if (progress.state !== "complete") {
           setTimeout(tick, 700);
         }
       } catch (err) {

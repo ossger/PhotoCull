@@ -497,7 +497,9 @@ function registerIpc(): void {
 // The native menu only forwards ids; the renderer owns what each one does (see
 // renderer/useMenuActions.ts). Plain-letter accelerators are display-only
 // (registerAccelerator: false) so useHotkeys keeps them and typing in a text
-// field never triggers a menu item; ⌘-chords are real accelerators.
+// field never triggers a menu item; ⌘-chords are real accelerators. Display-only
+// items also ignore keyboard-triggered clicks in the main window, so a key the
+// renderer forgot to preventDefault can never fire twice (hotkey + menu).
 function buildAppMenu(): void {
   const send = (id: string) => () => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("menu:action", id);
@@ -511,7 +513,13 @@ function buildAppMenu(): void {
     label,
     accelerator,
     registerAccelerator: !display,
-    click: send(id),
+    click: (_item, win, ev) => {
+      // Only the main window mounts useHotkeys; anywhere else (the popped-out
+      // filmstrip, a dialog) nothing else would act on the key, so let the
+      // menu item through. `ev` is undefined for a programmatic item.click().
+      if (display && ev?.triggeredByAccelerator && win === mainWindow) return;
+      send(id)();
+    },
   });
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(process.platform === "darwin" ? [{ role: "appMenu" as const }] : []),

@@ -23,7 +23,6 @@ import sqlite3
 import statistics
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Iterable
 
 import imagehash
 from PIL import Image
@@ -169,9 +168,15 @@ def regroup(conn: sqlite3.Connection, force: bool = False) -> int:
             # Boundary between timed and untimed images
             split = True
         # pHash refinement: only when both sides have hashes and we haven't already split
-        if not split and run_here is None and prev and prev.phash and row.phash:
-            if (prev.phash - row.phash) > PHASH_SPLIT_THRESHOLD:
-                split = True
+        if (
+            not split
+            and run_here is None
+            and prev
+            and prev.phash
+            and row.phash
+            and (prev.phash - row.phash) > PHASH_SPLIT_THRESHOLD
+        ):
+            split = True
         if split:
             scenes.append(current)
             current = [row]

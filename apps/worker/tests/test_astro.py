@@ -12,7 +12,7 @@ from photocull.astro.cull import FrameMetrics, judge
 from photocull.astro.stars import detect_stars, to_gray8
 from photocull.shoot import Shoot
 
-from .astro_fixtures import render_frame, stamp_for, star_catalog, write_jpeg
+from .astro_fixtures import render_frame, star_catalog
 
 # ---- detect.py (pure) ----
 

@@ -41,10 +41,12 @@ export function CroppedImage({
   const [rootSize, setRootSize] = useState<{ w: number; h: number } | null>(null);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
   const roRef = useRef<ResizeObserver | null>(null);
+  const rootElRef = useRef<HTMLDivElement | null>(null);
 
   const rootCallbackRef = useCallback((el: HTMLDivElement | null) => {
     roRef.current?.disconnect();
     roRef.current = null;
+    rootElRef.current = el;
     if (!el) return;
     const recompute = () => setRootSize({ w: el.offsetWidth, h: el.offsetHeight });
     recompute();
@@ -103,6 +105,16 @@ export function CroppedImage({
             decoding="async"
             onLoad={(e) => {
               const el = e.currentTarget;
+              // A load for a src we've since moved off must not set the size
+              // of the current picture.
+              if (el.getAttribute("src") !== src) return;
+              // The observer misses a layout that settled before it attached.
+              const root = rootElRef.current;
+              if (root) {
+                const w = root.offsetWidth;
+                const h = root.offsetHeight;
+                setRootSize((prev) => (prev && prev.w === w && prev.h === h ? prev : { w, h }));
+              }
               const s = { w: el.naturalWidth, h: el.naturalHeight };
               setNaturalSize(s);
               onNaturalSize?.(s);

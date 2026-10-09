@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "photocull-worker"
-version = "0.4.0"
+version = "0.4.1"
 description = "Python sidecar for the PhotoCull desktop app — RAW decode, EXIF, scene detection, AI scoring, XMP export."
 requires-python = ">=3.11"
 dependencies = [
@@ -54,6 +54,17 @@ include = ["photocull*"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+# Explicit rather than whatever the installed ruff defaults to, so the lint
+# result doesn't change with the ruff version. DTZ is deliberately off:
+# capture times are the camera's naive wall-clock EXIF values, and the mtime
+# fallbacks must stay naive too so the two compare consistently.
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "BLE", "PLW1510"]
+# RUF046: round() of numpy scalars isn't always a Python int, so the int() casts stay.
+# Long lines are left to the author's judgement; B905 and the ambiguous-unicode
+# rules fire on idioms used on purpose (zip of equal-length lists, "×" in docs).
+ignore = ["E501", "B905", "RUF046", "RUF001", "RUF002", "RUF003"]
 
 [tool.pytest.ini_options]
 # Without this, a bare `pytest` also collects from dist-bin/ and build/ (the

@@ -15,19 +15,21 @@ import logging
 import os
 import secrets
 import sys
+import threading
+from collections.abc import Coroutine
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from . import __version__
 from . import events as events_mod
 from . import organize as organize_mod
 from .astro.stack import StackOptions
-from .shoot import Shoot
+from .shoot import GROUPING_LABEL, Shoot
 
 log = logging.getLogger("photocull.server")
 
@@ -55,15 +57,49 @@ def require_token_or_query(
 # ----- shoot registry (one open shoot for Phase 1) -----
 
 _shoot: Shoot | None = None
-# Per-shoot ingest progress; replaced when a new shoot starts.
-_progress: dict[str, Any] = {"state": "idle", "done": 0, "total": 0, "current": None}
+# Per-shoot ingest progress; replaced when a new shoot starts. `phase` is
+# "ingest" while files decode, "grouping" for the pruning/scene pass after.
+_progress: dict[str, Any] = {
+    "state": "idle", "phase": "ingest", "done": 0, "total": 0, "current": None,
+    "failed": 0, "failed_files": [], "error": None,
+}
+
+# Bumped on every shoot open. An ingest from an earlier open can still be
+# winding down when the next one starts; it must not write into the new shoot's
+# progress (a stray "complete" would stop the UI polling mid-ingest). All
+# progress writes and the generation bump share `_progress_lock`, so the
+# check-and-write is atomic against `open_shoot`.
+_ingest_generation = 0
+_progress_lock = threading.Lock()
+# Serialises open_shoot (it awaits the superseded ingest) and tracks that ingest.
+_open_lock = asyncio.Lock()
+_ingest_task: asyncio.Task[None] | None = None
 
 
-def _set_progress(done: int, total: int, current: str) -> None:
-    _progress["state"] = "running" if done < total else "complete"
-    _progress["done"] = done
-    _progress["total"] = total
-    _progress["current"] = current
+_background_tasks: set[asyncio.Task[None]] = set()
+
+
+def _spawn(coro: Coroutine[Any, Any, None]) -> None:
+    """Run a fire-and-forget job; the loop only weakly references tasks, so
+    hold one until it finishes or it can be garbage-collected mid-run."""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
+def _set_progress(
+    done: int, total: int, current: str, generation: int | None = None
+) -> None:
+    # Never "complete" here: the last file finishing is not the end of ingest
+    # (sibling pruning + scene grouping still follow). _run_ingest owns that.
+    with _progress_lock:
+        if generation is not None and generation != _ingest_generation:
+            return
+        _progress["state"] = "running"
+        _progress["phase"] = "grouping" if current == GROUPING_LABEL else "ingest"
+        _progress["done"] = done
+        _progress["total"] = total
+        _progress["current"] = current
 
 
 # Sort-into-events progress; same shape and lifecycle as organize's.
@@ -201,37 +237,74 @@ def health() -> dict[str, str]:
 
 @app.post("/shoot/open", dependencies=[Depends(require_token)])
 async def open_shoot(body: OpenShootBody) -> dict[str, Any]:
-    global _shoot
+    global _shoot, _ingest_generation, _ingest_task
     root = Path(body.path).expanduser()
     if not root.is_dir():
         raise HTTPException(404, f"not a directory: {root}")
 
-    if _shoot is not None:
-        _shoot.close()
-        _shoot = None
+    async with _open_lock:
+        with _progress_lock:
+            # Supersede any running ingest first: its progress writes stop here.
+            _ingest_generation += 1
+            generation = _ingest_generation
+            _progress.update(
+                state="running", phase="ingest", done=0, total=1, current="starting",
+                failed=0, failed_files=[], error=None,
+            )
 
-    _shoot = Shoot(root)
-    _set_progress(0, 1, "starting")
+        if _shoot is not None:
+            # Stop the old ingest and let it drain before closing its DB, so it
+            # never decodes into a closed (or, on a re-open, shared) database.
+            _shoot.cancel()
+            if _ingest_task is not None:
+                await _ingest_task
+            _shoot.close()
+            _shoot = None
 
-    async def _run_ingest() -> None:
-        loop = asyncio.get_running_loop()
-        assert _shoot is not None
-        count = await loop.run_in_executor(
-            None, lambda: _shoot.ingest(progress=_set_progress)
-        )
-        _progress["state"] = "complete"
-        _progress["done"] = count
-        _progress["total"] = count
-        _progress["current"] = None
+        shoot = _shoot = Shoot(root)
 
-    asyncio.create_task(_run_ingest())
+        def _progress_if_current(done: int, total: int, current: str) -> None:
+            _set_progress(done, total, current, generation)
 
-    return {"root": str(_shoot.root), "cache": str(_shoot.cache_dir)}
+        async def _run_ingest() -> None:
+            loop = asyncio.get_running_loop()
+            try:
+                count = await loop.run_in_executor(
+                    None, lambda: shoot.ingest(progress=_progress_if_current)
+                )
+            except Exception as exc:
+                with _progress_lock:
+                    if generation == _ingest_generation:
+                        log.exception("ingest failed")
+                        _progress.update(
+                            failed=len(shoot.last_failures),
+                            failed_files=shoot.last_failures[:20],
+                            error=f"Ingest failed: {exc}",
+                        )
+                        _progress["state"] = "error"
+                    else:
+                        log.debug("superseded ingest ended: %s", exc)
+                return
+            with _progress_lock:
+                if generation != _ingest_generation:
+                    return
+                # `state` last: a poller seeing "complete" must see the rest.
+                _progress.update(
+                    done=count, total=count, current=None,
+                    failed=len(shoot.last_failures),
+                    failed_files=shoot.last_failures[:20],
+                )
+                _progress["state"] = "complete"
+
+        _ingest_task = asyncio.create_task(_run_ingest())
+
+        return {"root": str(shoot.root), "cache": str(shoot.cache_dir)}
 
 
 @app.get("/shoot/progress", dependencies=[Depends(require_token)])
 def shoot_progress() -> dict[str, Any]:
-    return dict(_progress)
+    with _progress_lock:
+        return dict(_progress)
 
 
 def _require_shoot() -> Shoot:
@@ -359,11 +432,11 @@ async def astro_stack(body: AstroStackBody) -> dict[str, Any]:
                 lambda: shoot.stack_astro(body.image_ids, options, _set_astro_progress),
             )
             _astro_progress.update(state="complete", result=result, current=None)
-        except Exception as exc:  # noqa: BLE001 - surface any failure to the UI
+        except Exception as exc:
             log.exception("star stack failed")
             _astro_progress.update(state="error", error=str(exc), current=None)
 
-    asyncio.create_task(_run())
+    _spawn(_run())
     return {"started": True}
 
 
@@ -432,7 +505,7 @@ async def organize_run(body: OrganizeBody) -> dict[str, Any]:
             current=None, moved=result.moved, skipped=result.skipped, renamed=result.renamed,
         )
 
-    asyncio.create_task(_run())
+    _spawn(_run())
     return {"started": True, "total": total}
 
 
@@ -493,7 +566,7 @@ async def events_run(body: EventsRunBody) -> dict[str, Any]:
                 error="The folder changed since the preview. Preview again and retry.",
             )
             return
-        except Exception as exc:  # noqa: BLE001 - surface to the modal, not a 500
+        except Exception as exc:
             log.exception("events run failed")
             _events_progress.update(state="error", current=None, error=str(exc))
             return
@@ -502,7 +575,7 @@ async def events_run(body: EventsRunBody) -> dict[str, Any]:
             renamed=result.renamed, folders=result.folders,
         )
 
-    asyncio.create_task(_run())
+    _spawn(_run())
     return {"started": True}
 
 

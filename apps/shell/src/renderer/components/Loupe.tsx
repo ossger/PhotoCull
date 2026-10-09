@@ -7,6 +7,11 @@ import { CropOverlay } from "./CropOverlay";
 import { CroppedImage } from "./CroppedImage";
 import { FacesOverlay } from "./FacesOverlay";
 
+// Smallest face (fraction of frame area) worth eye-zooming when the detector
+// found no eye points: ~7% of the frame's width/height, so small subjects in
+// group and environmental portraits still qualify.
+const MIN_EYELESS_FACE_AREA = 0.005;
+
 function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
 }
@@ -68,6 +73,11 @@ function rectFromCenter(cx: number, cy: number, halfW: number, halfH: number) {
 function eyeRectForFaces(
   faces: FaceDetection[],
 ): { x: number; y: number; w: number; h: number } | null {
+  // A tiny face with no eye points is more likely a false positive on
+  // scenery than a subject worth auto-zooming to.
+  faces = faces.filter(
+    (f) => f.left_eye || f.right_eye || f.box[2] * f.box[3] >= MIN_EYELESS_FACE_AREA,
+  );
   if (faces.length === 0) return null;
   const face = faces.reduce((best, f) =>
     f.box[2] * f.box[3] > best.box[2] * best.box[3] ? f : best,
@@ -136,7 +146,19 @@ export function Loupe() {
     width: number;
     height: number;
   } | null>(null);
-  const [fullLoaded, setFullLoaded] = useState(false);
+  // Id of the frame whose full-res image has loaded. Compared against the
+  // current id (rather than a bare boolean) so a frame switch can never render
+  // one pass with the previous frame's "loaded" flag.
+  const [fullLoadedFor, setFullLoadedFor] = useState<number | null>(null);
+  const fullLoaded = image != null && fullLoadedFor === image.id;
+  // Where the current zoom came from: the eye-zoom snap, or the user. A user
+  // zoom/unzoom is never overridden by a later re-snap (e.g. full-res swap-in).
+  const [zoomSource, setZoomSourceState] = useState<"none" | "eye" | "user">("none");
+  const zoomSourceRef = useRef(zoomSource);
+  const setZoomSource = (v: "none" | "eye" | "user") => {
+    zoomSourceRef.current = v;
+    setZoomSourceState(v);
+  };
   const fullPreloaderRef = useRef<HTMLImageElement>(null);
   const containerInnerRef = useRef<HTMLDivElement>(null);
   // CropOverlay registers its right-click menu here (it owns the aspect state).
@@ -171,6 +193,7 @@ export function Loupe() {
     const ch = effectiveCrop.bottom - effectiveCrop.top;
     if (cw <= 0 || ch <= 0) return naturalSize;
     return { w: cw * naturalSize.w, h: ch * naturalSize.h };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     naturalSize,
     effectiveCrop?.left,
@@ -187,7 +210,7 @@ export function Loupe() {
   useEffect(() => {
     zoom.reset();
     setNaturalSize(null);
-    setFullLoaded(false);
+    setZoomSource("none");
   }, [image?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Space toggles fit / 1:1. In crop mode Space is the pan modifier instead
@@ -200,12 +223,14 @@ export function Loupe() {
         if (e.key === " " || e.code === "Space") e.preventDefault();
         else if ((e.key === "z" || e.key === "Z") && !e.metaKey && !e.ctrlKey) {
           e.preventDefault();
+          setZoomSource("user");
           zoom.toggleOneToOne();
         }
         return;
       }
       if (e.key === " " || e.code === "Space") {
         e.preventDefault();
+        setZoomSource("user");
         zoom.toggleOneToOne();
       }
     };
@@ -251,8 +276,16 @@ export function Loupe() {
   // on frames with no detected face. Also suppressed while the face overlay is
   // shown — the overlay is only valid at fit scale, so inspecting faces (F) and
   // pixel-peeping the eyes (E) are deliberately distinct views.
+  // A change to the eye-zoom inputs themselves hands control back to the snap.
+  useEffect(() => {
+    setZoomSource("none");
+  }, [eyeZoom, showFaces, cropMode, cropRect?.left, cropRect?.top, cropRect?.right, cropRect?.bottom]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (cropMode || !naturalSize) return;
+    // The user took over (unzoomed, panned, 1:1): don't fight them when the
+    // full-res image swaps in and naturalSize changes.
+    if (zoomSourceRef.current === "user") return;
     if (!eyeZoom || showFaces) {
       zoom.reset();
       return;
@@ -264,6 +297,7 @@ export function Loupe() {
     }
     if (!cropRect) {
       zoom.zoomToRect(raw);
+      setZoomSource("eye");
       return;
     }
     // The saved crop may have cut the subject's eyes out entirely — in that
@@ -273,6 +307,7 @@ export function Loupe() {
     const cy = mapped ? mapped.y + mapped.h / 2 : -1;
     if (mapped && cx >= 0 && cx <= 1 && cy >= 0 && cy <= 1) {
       zoom.zoomToRect(mapped);
+      setZoomSource("eye");
     } else {
       zoom.reset();
     }
@@ -303,6 +338,7 @@ export function Loupe() {
     return faces
       .map((f) => mapFaceIntoCrop(f, cropRect))
       .filter((f): f is FaceDetection => f != null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [faces, cropRect?.left, cropRect?.top, cropRect?.right, cropRect?.bottom]);
 
   // Track the displayed image's bounding box (the crop's clipping box, when
@@ -334,6 +370,7 @@ export function Loupe() {
     if (zoom.boxRef.current) ro.observe(zoom.boxRef.current);
     if (containerInnerRef.current) ro.observe(containerInnerRef.current);
     return () => ro.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     cropMode,
     facesOverlayActive,
@@ -343,7 +380,7 @@ export function Loupe() {
     zoom.transform.scale,
     zoom.transform.tx,
     zoom.transform.ty,
-  ]); // eslint-disable-line react-hooks/exhaustive-deps
+  ]);
 
   if (!image) {
     return (
@@ -354,6 +391,12 @@ export function Loupe() {
   }
 
   const zoomed = zoom.transform.scale > 1.01;
+  // Only a zoom the user can actually have performed counts as theirs: before
+  // the frame has pixels there is nothing to zoom, and the eye-zoom snap
+  // must still get its turn.
+  const markUserZoom = () => {
+    if (naturalSize) setZoomSource("user");
+  };
   const cursor = cropMode
     ? "cursor-default"
     : zoomed
@@ -370,9 +413,38 @@ export function Loupe() {
     <div className="flex-1 min-h-0 flex flex-col bg-bg">
       <div
         ref={zoom.containerRef}
-        onWheel={zoom.onWheel}
-        onMouseDown={zoom.onMouseDown}
-        onDoubleClick={cropMode ? undefined : zoom.onDoubleClick}
+        onWheel={(e) => {
+          markUserZoom();
+          zoom.onWheel(e);
+        }}
+        onMouseDown={(e) => {
+          // A plain click isn't a pan: only the first real drag hands the view
+          // to the user, so clicking an eye-zoomed frame keeps eye-zoom.
+          if (zoomed) {
+            const sx = e.clientX;
+            const sy = e.clientY;
+            const onMove = (m: MouseEvent) => {
+              if (Math.hypot(m.clientX - sx, m.clientY - sy) < 4) return;
+              markUserZoom();
+              cleanup();
+            };
+            const cleanup = () => {
+              window.removeEventListener("mousemove", onMove);
+              window.removeEventListener("mouseup", cleanup);
+            };
+            window.addEventListener("mousemove", onMove);
+            window.addEventListener("mouseup", cleanup);
+          }
+          zoom.onMouseDown(e);
+        }}
+        onDoubleClick={
+          cropMode
+            ? undefined
+            : (e) => {
+                markUserZoom();
+                zoom.onDoubleClick(e);
+              }
+        }
         onContextMenu={(e) => {
           e.preventDefault();
           if (cropMode) cropMenuRef.current?.();
@@ -415,7 +487,8 @@ export function Loupe() {
             src={fullSrc}
             alt=""
             decoding="async"
-            onLoad={() => setFullLoaded(true)}
+            key={image.id}
+            onLoad={() => setFullLoadedFor(image.id)}
             style={{ display: "none" }}
           />
         )}
@@ -439,7 +512,9 @@ export function Loupe() {
         {/* Status chip */}
         {!cropMode && zoomed && (
           <div className="absolute top-2 right-2 px-2 py-1 text-xs font-mono bg-black/60 rounded">
+            {zoomSource === "eye" && "Eye zoom · "}
             {Math.round(zoom.transform.scale * 100)}%{useFull ? "" : " (loading…)"}
+            {zoomSource === "eye" && " · E to turn off"}
           </div>
         )}
         {!cropMode && hasCrop && (

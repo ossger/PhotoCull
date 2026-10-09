@@ -55,10 +55,18 @@ export interface FaceDetection {
 }
 
 export interface ShootProgress {
-  state: "idle" | "running" | "complete";
+  state: "idle" | "running" | "complete" | "error";
   done: number;
   total: number;
   current: string | null;
+  // "grouping" once every file is decoded and only scene grouping remains.
+  // Absent from older workers.
+  phase?: "ingest" | "grouping";
+  // Files the ingest couldn't read (count + first few relative paths), and the failure
+  // message when state is "error". Absent from older workers.
+  failed?: number;
+  failed_files?: string[];
+  error?: string | null;
 }
 
 export interface SceneRow {

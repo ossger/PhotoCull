@@ -120,7 +120,7 @@ def read_focus_batch(paths: list[Path]) -> dict[Path, FocusMeta]:
         ]
         try:
             proc = subprocess.run(
-                cmd, capture_output=True, text=True, encoding="utf-8", timeout=300
+                cmd, capture_output=True, text=True, encoding="utf-8", timeout=300, check=False
             )
         except Exception as exc:  # noqa: BLE001 - subprocess/timeout failures degrade gracefully
             log.warning("exiftool focus read failed to run: %s", exc)

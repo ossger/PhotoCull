@@ -73,7 +73,7 @@ function applyAspect(
 
   // Resolve which dimension to adjust based on the handle that's moving.
   // Corners adjust both; edges adjust the one perpendicular to themselves.
-  let next = { ...rect };
+  const next = { ...rect };
   const adjustH = (newH: number) => {
     const cy = (rect.top + rect.bottom) / 2;
     next.top = clamp(cy - newH / 2, 0, 1);
@@ -200,8 +200,8 @@ export function CropOverlay({ imageBox, imageAspect, menuRef, onToggleZoom, zoom
         case "move": {
           const w = d.startRect.right - d.startRect.left;
           const h = d.startRect.bottom - d.startRect.top;
-          let newLeft = clamp(d.startRect.left + dxNorm, 0, 1 - w);
-          let newTop = clamp(d.startRect.top + dyNorm, 0, 1 - h);
+          const newLeft = clamp(d.startRect.left + dxNorm, 0, 1 - w);
+          const newTop = clamp(d.startRect.top + dyNorm, 0, 1 - h);
           next = { left: newLeft, top: newTop, right: newLeft + w, bottom: newTop + h };
           break;
         }

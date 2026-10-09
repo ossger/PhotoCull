@@ -27,6 +27,7 @@ Run ``python -m photocull.organize --help``.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import logging
 import os
@@ -34,10 +35,10 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
-from typing import Callable
 
 from . import models
 
@@ -193,7 +194,7 @@ def read_capture_meta(paths: list[Path]) -> dict[Path, CaptureMeta]:
         ]
         try:
             proc = subprocess.run(
-                cmd, capture_output=True, text=True, encoding="utf-8", timeout=600
+                cmd, capture_output=True, text=True, encoding="utf-8", timeout=600, check=False
             )
         except Exception as exc:  # noqa: BLE001
             log.warning("exiftool read failed to run — sorting by file date only: %s", exc)
@@ -304,15 +305,13 @@ def _unique_name(dest: Path) -> Path:
 def _prune_empty_dirs(root: Path) -> None:
     """Remove now-empty subdirectories under root (keeps the inbox tidy). Leaves
     root itself, and ignores anything that won't delete."""
-    for dirpath, dirnames, filenames in os.walk(root, topdown=False):
+    for dirpath, _dirnames, _filenames in os.walk(root, topdown=False):
         d = Path(dirpath)
         if d == root:
             continue
         if not any(d.iterdir()):
-            try:
+            with contextlib.suppress(OSError):
                 d.rmdir()
-            except OSError:
-                pass
 
 
 def plan_preview(

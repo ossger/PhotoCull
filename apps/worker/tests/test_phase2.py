@@ -7,7 +7,6 @@ from pathlib import Path
 import piexif
 from PIL import Image, ImageDraw, ImageFilter
 
-from photocull.scenes import regroup
 from photocull.shoot import Shoot
 
 
