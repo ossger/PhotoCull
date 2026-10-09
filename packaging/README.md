@@ -6,8 +6,13 @@ Producing a double-clickable app (Windows `.exe` installer / macOS `.dmg`).
 > `v0.4.0` shipped 2026-10-08, signed + notarized, rebuilt on
 > python-build-standalone (see "the minimum-OS trap"): measured floor **macOS
 > 13.0**, `mac.minimumSystemVersion` pinned to match. The older `v0.3.1` arm64
-> (2026-08-28) needs macOS 26. macOS **x64 (Intel)** `v0.3.1` is built and
-> signed but not yet notarized or published (SD-0101).
+> (2026-08-28) needs macOS 26. `v0.4.1` (the first public beta) is built the
+> same way for **both** arm64 and **x64 (Intel)**, each signed, notarized and
+> stapled, with a measured floor of 13.0 (2026-10-09). The `.dmg` itself is
+> not codesigned (`codesign -dv` says so, and `spctl -t install` on it reports
+> "no usable signature"); Gatekeeper accepts the notarized `.app` inside
+> (`spctl -t exec` → "Notarized Developer ID"), and `v0.4.0` shipped the same
+> way. The app icon is `packaging/icon.png` (referenced from `mac.icon`).
 > `npm run dist` finds the notary credential through the `photocull-notary`
 > keychain profile; if the hook's probe misses it, set
 > `APPLE_NOTARY_KEYCHAIN_PROFILE=photocull-notary`. `npm run dev` is still the
