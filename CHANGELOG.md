@@ -2,14 +2,19 @@
 
 All notable changes to PhotoCull. Versions correspond to git tags (`v0.3.0`, …).
 
-## Unreleased
+## 0.4.1 — 2026-10-09 (first public beta)
 
+PhotoCull is now labelled **Beta**: the window title and About box say so, and
+the download page carries a Beta badge. Expect rough edges and please report
+them at <https://github.com/ossger/PhotoCull/issues>.
+
+- **New: Intel Mac build.** Signed and notarized, macOS 13 (Ventura) or newer,
+  alongside the Apple Silicon build.
+- **New: app icon.** The orange keeper-frame mark replaces the default Electron
+  icon.
 - **Improved: export feedback.** The Export button now shows a spinner and
   ignores repeat clicks while sidecars are written, and a result card appears
   under it with the count and a Show in Finder link. Failures stay until closed.
-
-## 0.4.1 — 2026-10-09
-
 - **Fixed: the C key flashed Compare and immediately closed it on macOS.** The
   keypress reached both the hotkey handler and the View ▸ Compare menu item, so
   compare toggled twice. The hotkey now consumes the key, and menu items that

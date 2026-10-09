@@ -6,10 +6,9 @@ ships, move it to **Done** with the date and add a line to `CHANGELOG.md`.
 
 ## Now
 
-- [#1](https://github.com/ossger/PhotoCull/issues/1) **Notarize and publish the Intel (x64) macOS build.** It's signed but blocked
-  on moving the notarization credential into a keychain profile.
-- [#3](https://github.com/ossger/PhotoCull/issues/3) **Fix the shell lint gate.** `npm --workspace apps/shell run lint` calls
-  `eslint`, but there's no ESLint dependency or config in the repo.
+- Hand-test the 0.4.x features that only have synthetic or unit coverage: star
+  stacking on a real RAW sequence, compare zoom/sync, pop-out filmstrip, and
+  Sort into events on a copy of a card dump.
 
 ## Next
 
@@ -32,6 +31,9 @@ ships, move it to **Done** with the date and add a line to `CHANGELOG.md`.
 
 ## Done
 
+- 2026-10-09: **0.4.1 public beta prepared**: Intel (x64) macOS build signed and
+  notarized (closes #1), real app icon, Beta labelling, and the shell lint gate
+  now runs (closes #3).
 - 2026-10-08: **PhotoCull 0.4.0 shipped** (signed + notarized arm64). Rebuilt on
   python-build-standalone, so the macOS floor is now 13.0 (closes #2).
 - 2026-10-07: **Star stacking** for untracked tripod sequences: detection,

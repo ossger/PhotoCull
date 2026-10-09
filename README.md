@@ -2,10 +2,10 @@
 
 A cross-platform desktop culling app for photographers. Inspired by Narrative Select: groups a shoot into **scenes**, scores each frame for **focus, eyes-open, exposure, and aesthetic**, then exports picks as **XMP sidecars** that Lightroom / Capture One pick up.
 
-**Download:** signed macOS builds at **[photocull.infrarg.com](https://photocull.infrarg.com)**
-(Windows build coming). Or build it from source — see [Dev setup](#dev-setup).
+**Download:** signed, notarized macOS builds (Apple Silicon and Intel) at
+**[photocull.infrarg.com](https://photocull.infrarg.com)** (Windows build coming). Or build it from source — see [Dev setup](#dev-setup).
 
-> Status: actively developed. RAW pipeline, scene grouping, local scoring
+> Status: **public beta** (0.4.x), actively developed. RAW pipeline, scene grouping, local scoring
 > (focus / eyes / exposure / aesthetic / faces), compare, crop, and XMP export
 > all work. Runs on **Windows and macOS**. Everything runs **locally** — no
 > account, no upload, your photos never leave your machine.

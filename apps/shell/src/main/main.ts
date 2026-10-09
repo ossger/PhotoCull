@@ -39,7 +39,7 @@ async function createWindow(): Promise<void> {
     minWidth: 1000,
     minHeight: 640,
     backgroundColor: "#0f1115",
-    title: "PhotoCull",
+    title: "PhotoCull Beta",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -485,7 +485,9 @@ function registerIpc(): void {
   ipcMain.on("window:setShootTitle", (e, name: string | null) => {
     const win = BrowserWindow.fromWebContents(e.sender);
     if (win && win === mainWindow) {
-      win.setTitle(typeof name === "string" && name ? `${name} — PhotoCull` : "PhotoCull");
+      win.setTitle(
+        typeof name === "string" && name ? `${name} — PhotoCull Beta` : "PhotoCull Beta",
+      );
     }
   });
 
@@ -570,6 +572,7 @@ function buildAppMenu(): void {
 }
 
 app.whenReady().then(async () => {
+  app.setAboutPanelOptions({ applicationVersion: `${app.getVersion()} (beta)` });
   registerIpc();
   buildAppMenu();
   try {

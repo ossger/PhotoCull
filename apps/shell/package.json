@@ -58,6 +58,7 @@
     "mac": {
       "target": "dmg",
       "category": "public.app-category.photography",
+      "icon": "../../packaging/icon.png",
       "minimumSystemVersion": "13.0",
       "artifactName": "${productName}-${version}-macOS-${arch}.${ext}",
       "hardenedRuntime": true,
