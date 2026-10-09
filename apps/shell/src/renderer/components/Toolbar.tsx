@@ -5,6 +5,7 @@ import { OrganizeModal } from "./OrganizeModal";
 import { EventSortModal } from "./EventSortModal";
 import { FilterPanel } from "./FilterPanel";
 import { Dropdown } from "./Dropdown";
+import { ExportToast } from "./ExportToast";
 
 const BTN =
   "flex-shrink-0 whitespace-nowrap px-3 py-1 rounded-md bg-panel2 hover:bg-line text-sm border border-line";
@@ -35,6 +36,7 @@ export function Toolbar() {
   const toggleViewMode = useStore((s) => s.toggleViewMode);
   const compareMode = useStore((s) => s.compareMode);
   const toggleCompare = useStore((s) => s.toggleCompare);
+  const exporting = useStore((s) => s.exporting);
   const exportPicks = useStore((s) => s.exportPicks);
   const exportMatches = useStore((s) => s.exportMatches);
   const exportImageIds = useStore((s) => s.exportImageIds);
@@ -203,15 +205,22 @@ export function Toolbar() {
             <button
               type="button"
               onClick={() => void exportPicks()}
-              disabled={!hasShoot || pickCount === 0}
+              disabled={!hasShoot || pickCount === 0 || exporting}
               title={
                 pickCount === 0
                   ? "No picks yet — press P on frames you want to keep"
                   : `Write XMP sidecars for ${pickCount} picked frame${pickCount === 1 ? "" : "s"}`
               }
-              className="whitespace-nowrap pl-3 pr-2.5 py-1 rounded-l-md bg-accent text-white text-sm hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="whitespace-nowrap min-w-[8.5rem] pl-3 pr-2.5 py-1 rounded-l-md bg-accent text-white text-sm hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Export picks ({pickCount})
+              {exporting ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                  Exporting…
+                </span>
+              ) : (
+                <>Export picks ({pickCount})</>
+              )}
             </button>
             <Dropdown
               align="right"
@@ -221,12 +230,12 @@ export function Toolbar() {
               items={[
                 {
                   label: `Export matches (${matchCount})`,
-                  disabled: !hasShoot || matchCount === 0,
+                  disabled: !hasShoot || matchCount === 0 || exporting,
                   onSelect: () => void exportMatches(),
                 },
                 {
                   label: `Export selection (${selectedIds.length})`,
-                  disabled: selectedIds.length === 0,
+                  disabled: selectedIds.length === 0 || exporting,
                   onSelect: () => void exportImageIds(selectedIds),
                 },
               ]}
@@ -234,6 +243,7 @@ export function Toolbar() {
           </div>
         </div>
       </div>
+      <ExportToast />
       {importOpen && <OrganizeModal onClose={() => setImportOpen(false)} />}
       {eventSortOpen && <EventSortModal onClose={() => setEventSortOpen(false)} />}
       {filterPanelOpen && <FilterPanel />}

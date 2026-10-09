@@ -98,6 +98,10 @@ interface Store {
   error: string | null;
   // Transient status line (menu actions: export results, merge, …). Auto-clears.
   notice: string | null;
+  // XMP export: in-flight flag (disables the button) and the last result
+  // (drives the toolbar toast). Success clears itself; failures stay.
+  exporting: boolean;
+  exportResult: ExportResult | null;
   // Scene whose card is showing the inline rename input (UI-only).
   renamingSceneId: number | null;
 
@@ -175,6 +179,7 @@ interface Store {
   exportPicks: () => Promise<void>;
   exportMatches: () => Promise<void>;
   showNotice: (msg: string) => void;
+  dismissExportResult: () => void;
 
   // Which top-level dialogs are open (driven by the toolbar, menu and hotkeys).
   importOpen: boolean;
@@ -344,6 +349,44 @@ function applyFilterChange(
   };
 }
 
+export interface ExportResult {
+  written: number;
+  failed: number;
+  sidecars: string[];
+  error?: string;
+}
+
+// Shared body of every XMP export entry point. Guards against double clicks
+// and publishes the outcome for the toolbar toast.
+async function runExport(
+  set: (partial: Partial<Store>) => void,
+  get: () => Store,
+  onlyPicked: boolean,
+  ids?: number[],
+): Promise<void> {
+  if (get().exporting) return;
+  set({ exporting: true, exportResult: null });
+  get().showNotice("writing sidecars…");
+  try {
+    const r = await window.photocull.exportXmp(onlyPicked, ids);
+    get().showNotice(
+      r.failed > 0 ? `wrote ${r.written}, failed ${r.failed}` : `wrote ${r.written} sidecar${r.written === 1 ? "" : "s"}`,
+    );
+    set({ exportResult: r });
+    if (r.failed === 0) {
+      setTimeout(() => {
+        if (get().exportResult === r) set({ exportResult: null });
+      }, 6000);
+    }
+  } catch (err) {
+    const error = (err as Error).message;
+    get().showNotice(`export failed: ${error}`);
+    set({ exportResult: { written: 0, failed: 0, sidecars: [], error } });
+  } finally {
+    set({ exporting: false });
+  }
+}
+
 export const useStore = create<Store>((set, get) => ({
   shootRoot: null,
   images: [],
@@ -371,6 +414,8 @@ export const useStore = create<Store>((set, get) => ({
   loading: false,
   error: null,
   notice: null,
+  exporting: false,
+  exportResult: null,
   renamingSceneId: null,
   importOpen: false,
   eventSortOpen: false,
@@ -911,6 +956,10 @@ export const useStore = create<Store>((set, get) => ({
     }, 5000);
   },
 
+  dismissExportResult() {
+    set({ exportResult: null });
+  },
+
   setRenamingScene(id) {
     set({ renamingSceneId: id });
   },
@@ -988,15 +1037,7 @@ export const useStore = create<Store>((set, get) => ({
 
   async exportImageIds(ids) {
     if (ids.length === 0) return;
-    get().showNotice("writing sidecars…");
-    try {
-      const r = await window.photocull.exportXmp(false, ids);
-      get().showNotice(
-        r.failed > 0 ? `wrote ${r.written}, failed ${r.failed}` : `wrote ${r.written} sidecar${r.written === 1 ? "" : "s"}`,
-      );
-    } catch (err) {
-      get().showNotice(`export failed: ${(err as Error).message}`);
-    }
+    await runExport(set, get, false, ids);
   },
 
   async exportPicks() {
@@ -1005,15 +1046,7 @@ export const useStore = create<Store>((set, get) => ({
       get().showNotice("no picks yet — press P on frames you want to keep");
       return;
     }
-    get().showNotice("writing sidecars…");
-    try {
-      const r = await window.photocull.exportXmp(true);
-      get().showNotice(
-        r.failed > 0 ? `wrote ${r.written}, failed ${r.failed}` : `wrote ${r.written} sidecar${r.written === 1 ? "" : "s"}`,
-      );
-    } catch (err) {
-      get().showNotice(`export failed: ${(err as Error).message}`);
-    }
+    await runExport(set, get, true);
   },
 
   async exportMatches() {

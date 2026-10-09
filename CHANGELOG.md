@@ -2,6 +2,12 @@
 
 All notable changes to PhotoCull. Versions correspond to git tags (`v0.3.0`, …).
 
+## Unreleased
+
+- **Improved: export feedback.** The Export button now shows a spinner and
+  ignores repeat clicks while sidecars are written, and a result card appears
+  under it with the count and a Show in Finder link. Failures stay until closed.
+
 ## 0.4.1 — 2026-10-09
 
 - **Fixed: the C key flashed Compare and immediately closed it on macOS.** The
