@@ -74,7 +74,8 @@ A cross-platform desktop culling app for photographers. Inspired by Narrative Se
 
 ## Dev setup
 
-Prereqs: **Node 20+** and **Python 3.11+** on both Windows and macOS.
+Prereqs: **Node 20+** and **Python 3.11+** on both Windows and macOS (macOS:
+`brew install python@3.12`; verify with `python3 --version` in a new terminal).
 
 ```bash
 # 1. JS deps
@@ -89,6 +90,7 @@ source .venv/bin/activate        # macOS
 # 3. Install the worker WITH the raw + ml extras. rawpy is imported at sidecar
 #    startup, so a base-only install won't boot the worker at this baseline.
 npm run worker:install           # = pip install -e "apps/worker[raw,ml]"
+                                 # (add the dev extra for pytest + ruff: pip install -e "apps/worker[raw,ml,dev]")
 
 # 4. Verify the environment (deps + exiftool) before launching:
 npm run doctor
@@ -101,6 +103,11 @@ npm run dev
 sorting and camera AF metadata work. (On Windows a portable copy is downloaded
 automatically on first use.) The face/RAW model files also download on first
 run, so the first launch needs an internet connection.
+
+Try it: click **Open folder…** and pick a shoot (RAW such as CR3 / NEF / ARW / DNG,
+JPEG, and HEIC are ingested; about 200 photos index in well under a minute). Decisions
+persist to a per-shoot SQLite DB at `<folder>/.photocull/shoot.db` and survive restarts.
+Worker tests: `pytest apps/worker`.
 
 ## Releases
 

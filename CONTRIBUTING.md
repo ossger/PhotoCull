@@ -8,8 +8,8 @@ welcome.
 - Check [`BACKLOG.md`](BACKLOG.md) and the open issues — the idea may already be
   planned. For anything bigger than a small fix, open an issue first so we can
   agree on the approach.
-- Setup: see "Dev setup" in [`README.md`](README.md) (or [`QUICKSTART.md`](QUICKSTART.md)
-  for the long version). `CLAUDE.md` describes the architecture in depth.
+- Setup: see "Dev setup" in [`README.md`](README.md). `CLAUDE.md` describes the
+  architecture in depth.
 
 ## Ground rules
 
@@ -18,7 +18,8 @@ welcome.
 - **Keep the cross-process contract in sync.** A new worker capability changes
   the FastAPI route, the IPC handler in `src/main`, the allow-listed method in
   `src/preload/preload.ts`, and `src/shared/types.ts` together.
-- **Cross-platform.** Don't break Windows or macOS paths or the packaged worker.
+- **Cross-platform.** macOS builds ship today and a Windows build is planned; don't break
+  either one's paths or the packaged worker.
 - **Never commit photos**, personal library paths, or keys.
 
 ## Checks before a PR

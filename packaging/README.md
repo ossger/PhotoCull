@@ -26,25 +26,11 @@ Producing a double-clickable app (Windows `.exe` installer / macOS `.dmg`).
 > artifact: it also documents why the published arm64 `v0.3.1` silently
 > requires macOS 26.
 >
-> Bugs found and fixed while validating on Windows (all apply equally to a mac
-> build, since they're in shared config, not OS-specific code):
-> - `build-worker.sh`/`.ps1` pointed PyInstaller straight at `photocull/server.py`,
->   which fails with "attempted relative import with no known parent package"
->   because that file uses package-relative imports. Both scripts now build
->   `apps/worker/entry.py` instead (a thin `from photocull.server import cli`
->   wrapper) — point any future manual PyInstaller invocation at that file too.
-> - `apps/shell/tsconfig.json` had `rootDir: "src/renderer"` but `include`d
->   `src/shared` too, and had no `paths` entry for the `@shared` alias Vite
->   resolves at bundle time — both broke `tsc -b` (only `vite`-driven `npm run
->   dev` ever exercised this path, so it went unnoticed). Fixed: `rootDir: "src"`
->   plus `paths: { "@shared/*": ["src/shared/*"] }`.
-> - `apps/shell/package.json`'s `extraResources` entry used `filters` (electron-builder's
->   schema wants `filter`, singular).
-> - electron-builder couldn't compute the electron version under npm workspaces
->   (electron is hoisted to the repo-root `node_modules`, not `apps/shell`'s) —
->   pinned `build.electronVersion` explicitly. **Re-pin this if `electron`'s
->   version in `apps/shell/package.json` is ever bumped**, or the pinned value
->   will silently drift from what's installed.
+> Windows validation notes (shared config, so they apply to a mac build too): PyInstaller
+> must build `apps/worker/entry.py`, not `photocull/server.py` (package-relative imports
+> fail otherwise), and `build.electronVersion` is pinned in `apps/shell/package.json`
+> because electron-builder can't resolve it under npm workspaces. **Re-pin it whenever
+> `electron`'s version is bumped.** The rest of that pass was one-off config fixes.
 >
 > Bugs found and fixed validating on macOS specifically:
 > - `directories.output` was unset, defaulting to `apps/shell/dist` — the same

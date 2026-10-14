@@ -5,13 +5,14 @@ into **scenes**, scores each frame (focus / eyes-open / exposure / aesthetic),
 and exports the picks as **XMP sidecars** that Lightroom / Capture One read.
 
 `README.md` has the user-facing setup. This file is for agents working in the
-code. The code is at the **Phase 3 baseline plus Phase 4 in progress** (RAW
-pipeline, scenes, scoring incl. faces + local aesthetic heuristic, crop, XMP
-export); the README's status line agrees.
+code. The app is a **public beta (0.4.x)**: RAW pipeline, scenes, scoring incl. faces
++ local aesthetic heuristic, crop, XMP export, and star stacking all work; Phase 4
+(cloud vision, CLIP scenes) is still open (see Conventions below).
 
-> Runtime: **Windows and macOS** (both first-class; README ships both). Node ≥ 20,
-> Python 3.11+. XMP export shells out to **exiftool** — bundled/downloaded on
-> Windows, `brew install exiftool` on macOS.
+> Runtime: **macOS** (arm64 and x64, signed and notarized, shipped since 0.4.1 per
+> `CHANGELOG.md`); the **Windows** build is pending. Node >= 20, Python 3.11+. XMP
+> export shells out to **exiftool**: `brew install exiftool` on macOS, bundled/downloaded
+> on Windows.
 
 ---
 
@@ -108,9 +109,9 @@ crop rect — these are what XMP export writes out.
 - **Local-first.** Scoring runs offline by default. Cloud vision / API scoring
   (roadmap Phase 4) must stay **optional and opt-in** — never a hard dependency
   for the core cull.
-- **Cross-platform.** Windows is the current target; keep macOS in mind (path
-  handling, the `resolvePython` / packaged-sidecar paths). Don't break the
-  packaged PyInstaller path in `sidecar.ts`.
+- **Cross-platform.** macOS (arm64, x64) has shipped and Windows is pending; keep
+  both working (path handling, the `resolvePython` / packaged-sidecar paths).
+  Don't break the packaged PyInstaller path in `sidecar.ts`.
 - **Worker stays a clean package** (`photocull`) with tests; keep heavy
   ML/RAW work in the worker, not the renderer.
 - Internal roadmap (separate from the repo-wide restructure phases): Phase 4 =
@@ -127,10 +128,7 @@ crop rect — these are what XMP export writes out.
 - **This repo is public.** Everything committed must be public-safe: no personal
   photos, no library paths, no API keys. `_RawIngest/` and `PhotoLibrary/` are
   git-ignored and must stay that way.
-- **Releases:** a tagged version becomes a GitHub Release asset on
-  `ossger/photocull-releases`, linked from `photocull.infrarg.com`. Bump the
-  version in all four places and add a `CHANGELOG.md` entry before tagging; never
-  rebuild a version number in place once it's tagged.
+- **Releases:** see `README.md` "Releases" (version bump in four places, `CHANGELOG.md` entry, never rebuild a tagged version).
 - When the cloud-vision option gets its key-storage story, keys live in the OS
   keychain / user settings — never a committed file, never a default-on dependency.
 - Maintainer-local operating notes (if present) live in the git-ignored
