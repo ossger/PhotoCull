@@ -28,6 +28,10 @@ ships, move it to **Done** with the date and add a line to `CHANGELOG.md`.
 - [#8](https://github.com/ossger/PhotoCull/issues/8) **Post-cull pipeline:** hand picks to Lightroom / Photoshop, then share edited
   exports (Instagram, Immich, a shared album for TV screens).
 - Google Photos / iCloud as Import sources.
+- **Select and rate from the compare pane, not just the filmstrip.** With four frames
+  up for comparison, click a frame in the large compare area to select it (multi-select
+  too), then unpick, reject, star or color-label it there. Example: four picks in
+  compare, unpick three of them without going back to the filmstrip.
 
 ## Done
 
