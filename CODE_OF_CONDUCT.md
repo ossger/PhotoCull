@@ -33,7 +33,7 @@ public spaces.
 ## Reporting and enforcement
 
 Report a problem privately to the maintainer at
-**CONDUCT_CONTACT_TBD** <!-- maintainer: replace with the reporting address before publishing -->.
+[photocull@infrarg.com](mailto:photocull@infrarg.com).
 Reports are kept confidential.
 
 The maintainer will review every report and may respond, depending on what
