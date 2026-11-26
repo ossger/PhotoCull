@@ -19,16 +19,23 @@ ships, move it to **Done** with the date and add a line to `CHANGELOG.md`.
 - [#7](https://github.com/ossger/PhotoCull/issues/7) **Pop-out filmstrip performance on very large shoots.** A rating change re-sends
   the whole image list to the pop-out, so measure it and send diffs if needed.
 
+## Contributor starters
+
+Good first issues for new contributors (also listed in `CONTRIBUTING.md`):
+[#9](https://github.com/ossger/PhotoCull/issues/9) CI,
+[#12](https://github.com/ossger/PhotoCull/issues/12) a first-cull walkthrough,
+[#13](https://github.com/ossger/PhotoCull/issues/13) Linux from source, plus #7, #10, #11 above.
+
 ## Ideas
 
 - **Star stacking, next:** try it on real RAW sequences and tune the thresholds;
   a brush to correct the foreground mask; local (grid) warp for very long
-  sequences or wide lenses; dark-frame subtraction; star-tracker (fixed-sky)
+  sequences or wide lenses; dark-frame subtraction ([#11](https://github.com/ossger/PhotoCull/issues/11)); star-tracker (fixed-sky)
   sequences.
 - [#8](https://github.com/ossger/PhotoCull/issues/8) **Post-cull pipeline:** hand picks to Lightroom / Photoshop, then share edited
   exports (Instagram, Immich, a shared album for TV screens).
 - Google Photos / iCloud as Import sources.
-- **Select and rate from the compare pane, not just the filmstrip.** With four frames
+- [#10](https://github.com/ossger/PhotoCull/issues/10) **Select and rate from the compare pane, not just the filmstrip.** With four frames
   up for comparison, click a frame in the large compare area to select it (multi-select
   too), then unpick, reject, star or color-label it there. Example: four picks in
   compare, unpick three of them without going back to the filmstrip.

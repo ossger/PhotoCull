@@ -84,15 +84,16 @@ cd apps/worker && ruff check           # worker lint
 ## Good first issues
 
 These are drawn from [`BACKLOG.md`](BACKLOG.md) and sized for a first PR. Each
-one is self-contained. Comment on the matching issue (or open one) before
-starting, so two people don't build the same thing.
+one is self-contained and has a GitHub issue labeled
+[`good first issue`](https://github.com/ossger/PhotoCull/labels/good%20first%20issue).
+Comment on the issue before starting, so two people don't build the same thing.
 
-1. **Add CI.** There's no GitHub Actions workflow yet. Add one that runs on
+1. **Add CI** ([#9](https://github.com/ossger/PhotoCull/issues/9)). There's no GitHub Actions workflow yet. Add one that runs on
    pull requests: `npm ci`, `npm run build`, the shell lint, and the worker
    `pytest` and `ruff check` (Python 3.11 and 3.12, macOS and Ubuntu). The
    worker tests generate their own fixtures, so they shouldn't need real
    photos. *Files:* `.github/workflows/ci.yml`. *Skills:* GitHub Actions.
-2. **Select and rate from the compare pane.** With four frames up in compare,
+2. **Select and rate from the compare pane** ([#10](https://github.com/ossger/PhotoCull/issues/10)). With four frames up in compare,
    clicking a frame in the big compare area should select it (⌘/Ctrl-click and
    Shift-click for multi-select), and pick/reject/stars/colour should then
    apply to that selection. Example: four picks in compare, unpick three of
@@ -105,17 +106,17 @@ starting, so two people don't build the same thing.
    report the numbers. `renderer/filmstripSync.ts` already sends diffs for some
    changes, so the work is to confirm whether the image list is re-sent and
    trim it if so. *Skills:* TypeScript, profiling.
-4. **Star stacking: dark-frame subtraction.** Accept optional dark frames
+4. **Star stacking: dark-frame subtraction** ([#11](https://github.com/ossger/PhotoCull/issues/11)). Accept optional dark frames
    (lens cap on, same exposure), average them, and subtract the result from
    each light frame before alignment. Worker only, with a pytest using the
    synthetic fixtures in `tests/astro_fixtures.py`. *Files:*
    `photocull/astro/stack.py`, `tests/test_astro_stack.py`. *Skills:* Python,
    NumPy.
-5. **Docs: a "your first cull" walkthrough.** A short illustrated guide in
+5. **Docs: a "your first cull" walkthrough** ([#12](https://github.com/ossger/PhotoCull/issues/12)). A short illustrated guide in
    `docs/` covering open a shoot → scenes → compare → pick → export XMP → open
    in Lightroom, using synthetic or freely licensed sample images. *Skills:*
    writing, screenshots.
-6. **Run it on Linux.** Nobody has tried PhotoCull on Linux yet. Get
+6. **Run it on Linux** ([#13](https://github.com/ossger/PhotoCull/issues/13)). Nobody has tried PhotoCull on Linux yet. Get
    `npm run dev` working on a recent Ubuntu or Fedora, fix any path
    assumptions you hit, and document the steps. (Packaging a Linux build is a
    separate, later step.) *Skills:* Linux, Node, Python.
