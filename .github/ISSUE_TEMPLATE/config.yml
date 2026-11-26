@@ -1,1 +1,8 @@
 blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/ossger/PhotoCull/security/advisories/new
+    about: Please report security issues privately, not as a public issue.
+  - name: Download PhotoCull
+    url: https://photocull.infrarg.com
+    about: Signed, notarized macOS builds and install help.

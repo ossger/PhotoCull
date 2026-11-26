@@ -1,5 +1,17 @@
-# Shown as the "Sponsor" button on the repo page.
+# The "Sponsor" button on the repo page.
+
+# GitHub Sponsors (0% fee on personal sponsorships). Takes effect once the
+# maintainer's Sponsors profile is approved (not yet, as of 2026-11-26).
 github: ossger
-# Uncomment once the account exists (username, not URL):
-# ko_fi: <ko-fi-username>
+
+# Buy Me a Coffee (live).
 buy_me_a_coffee: ossger
+
+# Other platforms, uncommented only if the maintainer opens them
+# (username, not URL):
+# ko_fi: <ko-fi-username>
+# polar: <polar-org>
+# open_collective: <collective-slug>
+
+# The support section on the download site, which covers every option.
+custom: ["https://photocull.infrarg.com/#support"]

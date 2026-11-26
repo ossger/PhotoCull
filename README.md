@@ -7,7 +7,7 @@ A cross-platform desktop culling app for photographers. Inspired by Narrative Se
 
 > Status: **public beta** (0.4.x), actively developed. RAW pipeline, scene grouping, local scoring
 > (focus / eyes / exposure / aesthetic / faces), compare, crop, and XMP export
-> all work. Runs on **Windows and macOS**. Everything runs **locally** — no
+> all work. Ships for **macOS** today (Windows build in progress). Everything runs **locally** — no
 > account, no upload, your photos never leave your machine.
 
 ## Features
@@ -192,30 +192,31 @@ shoot, it is closed first.
 
 ## Roadmap
 
-- **Phase 1 (done)** — walking skeleton: folder pick, JPEG ingest, virtualized grid, star/pick hotkeys
-- **Phase 2 (done)** — scene grouping, sharpness + exposure scoring, compare view
-- **Phase 3 (done)** — RAW pipeline, MediaPipe + YuNet face/eyes, XMP export
-- **Phase 4 (in progress)** — local aesthetic scoring (contrast + colorfulness
-  heuristic, done); optional Claude/Google Vision API scoring and CLIP smart
-  scenes still to come
-- **Post-cull pipeline (idea, not started)** — the steps after culling, currently
-  done by hand. Hand picks to Lightroom / Photoshop for editing (the XMP sidecars
-  already carry picks/stars/crop), then share the edited exports: an Instagram
-  post, an Immich upload, and the family's TV screens (Google TV + Fire TV).
-  A shared Immich or Google Photos album is the likely single source for those
-  screens.
+Done so far: the walking skeleton, scene grouping and scoring, the RAW
+pipeline, face/eye detection, XMP export, a local aesthetic heuristic, and star
+stacking. Next up: the Windows build, optional, opt-in cloud vision scoring,
+and CLIP smart scenes.
 
-See [`BACKLOG.md`](BACKLOG.md) for the running list of what's next, and the
-[issue tracker](https://github.com/ossger/PhotoCull/issues) to request a feature
-or report a bug.
+[`ROADMAP.md`](ROADMAP.md) has the full picture. [`BACKLOG.md`](BACKLOG.md) is
+the detailed working list, and the
+[issue tracker](https://github.com/ossger/PhotoCull/issues) is where to request
+a feature or report a bug.
+
+## Contributing
+
+Contributions are welcome: code, docs, testing on your camera's RAW files, and
+bug reports. [`CONTRIBUTING.md`](CONTRIBUTING.md) covers setup, the ground
+rules, and a list of good first issues. Everyone taking part follows the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Support PhotoCull
 
 PhotoCull is free and open source. If it saves you time on a shoot, you can
 support its development:
 
-- **GitHub Sponsors** — the **Sponsor** button at the top of this repo
+- **Sponsor** — the **Sponsor** button at the top of this repo lists every option
 - **Buy Me a Coffee** — [buymeacoffee.com/ossger](https://buymeacoffee.com/ossger)
+- **All the ways to help** — [photocull.infrarg.com/#support](https://photocull.infrarg.com/#support)
 
 Bug reports, feature ideas, and pull requests are just as welcome — see
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
