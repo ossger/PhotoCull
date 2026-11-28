@@ -10,6 +10,8 @@ A cross-platform desktop culling app for photographers. Inspired by Narrative Se
 > all work. Ships for **macOS** today (Windows build in progress). Everything runs **locally** — no
 > account, no upload, your photos never leave your machine.
 
+![PhotoCull's loupe view: the scene list on the left, the selected frame with its focus, exposure, and aesthetic scores, and a filmstrip ranked by score with picks and rejects marked](docs/screenshots/loupe.jpg)
+
 ## Features
 
 - **Scenes** — bursts and near-duplicates grouped automatically, so you pick the
@@ -26,6 +28,8 @@ A cross-platform desktop culling app for photographers. Inspired by Narrative Se
   leave out (cloud, soft, trailed, bright sky), and stacks the rest into a
   16-bit TIFF with the sky aligned and the landscape kept sharp.
 - **Import / Sort into events** — tidy card dumps into dated folders before culling.
+
+![Compare view: four frames from one scene side by side, each with its score, above the filmstrip](docs/screenshots/compare.jpg)
 
 ### Hotkeys
 
@@ -224,3 +228,5 @@ Bug reports, feature ideas, and pull requests are just as welcome — see
 ## License
 
 [MIT](LICENSE) © 2026 Ross Goeringer
+
+The sample photos in the screenshots are from [Unsplash](https://unsplash.com/license).
